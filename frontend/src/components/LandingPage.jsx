@@ -1,41 +1,86 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { MessageCircle, Users, Shield, Star, ArrowRight, User, LogIn } from 'lucide-react'
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { MessageCircle, Users, Shield, Star, ArrowRight, User, LogOut } from 'lucide-react';
+import toast from 'react-hot-toast';
 
-const LandingPage = ({ onStartChat, onGenderFilter, onChatRoom, isAuthenticated, onLogin }) => {
-  const [username, setUsername] = useState('')
+const LandingPage = ({ user, isAuthenticated, onLogin, onLogout, onPaymentRequest, onlineUsers }) => {
+  const [anonymousUsername, setAnonymousUsername] = useState('');
+  const [selectedGender, setSelectedGender] = useState('not_disclosed');
+  const [showGenderModal, setShowGenderModal] = useState(false);
 
-  const handleStartChat = () => {
-    if (!username.trim()) {
-      alert('Please enter a username')
-      return
+  const handleAnonymousChat = () => {
+    if (!anonymousUsername.trim()) {
+      toast.error('Please enter a username');
+      return;
     }
-    localStorage.setItem('anonymousUsername', username)
-    onStartChat()
-  }
+    
+    // Create anonymous user
+    const anonymousUser = {
+      id: `anon_${Date.now()}`,
+      username: anonymousUsername,
+      gender: selectedGender,
+      isAnonymous: true
+    };
+    
+    onLogin(anonymousUser);
+    window.location.href = '/chat';
+  };
+
+  const handleGenderSelection = (gender) => {
+    setSelectedGender(gender);
+    setShowGenderModal(false);
+  };
+
+  const getGenderDisplay = (gender) => {
+    switch (gender) {
+      case 'male': return 'Male';
+      case 'female': return 'Female';
+      case 'not_disclosed': return 'Not Disclosed';
+      default: return 'Not Disclosed';
+    }
+  };
+
+  const getProfilePicture = (gender) => {
+    const baseClass = "profile-picture";
+    switch (gender) {
+      case 'male': return `${baseClass} male`;
+      case 'female': return `${baseClass} female`;
+      default: return `${baseClass} not-disclosed`;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50">
+    <div className="min-h-screen">
       {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+      <nav className="glass-effect sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
-                  Chatter's Paradise
-                </h1>
-              </div>
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-2">
+              <MessageCircle className="w-8 h-8 text-orange-600" />
+              <h1 className="text-2xl font-bold gradient-text">ChatAndGossip.com</h1>
             </div>
+            
             <div className="flex items-center space-x-4">
               {isAuthenticated ? (
-                <Link to="/chat" className="btn-primary">
-                  Go to Chat
-                </Link>
-              ) : (
                 <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className={getProfilePicture(user?.gender)}>
+                      {user?.username?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className={`online-indicator ${user?.isOnline ? 'online' : 'offline'}`}></div>
+                  </div>
+                  <span className="text-gray-700 font-medium">{user?.username}</span>
+                  <button
+                    onClick={onLogout}
+                    className="flex items-center space-x-1 text-gray-600 hover:text-orange-600 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-4">
                   <Link to="/login" className="btn-outline">
-                    <LogIn className="w-4 h-4 mr-2" />
                     Login
                   </Link>
                   <Link to="/signup" className="btn-primary">
@@ -49,203 +94,194 @@ const LandingPage = ({ onStartChat, onGenderFilter, onChatRoom, isAuthenticated,
       </nav>
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-              Connect with
-              <span className="bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
-                {' '}Random People
-              </span>
+      <section className="py-20 px-4">
+        <div className="max-w-7xl mx-auto text-center">
+          <div className="animate-fade-in">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 gradient-text">
+              Connect with the World
             </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              Experience the thrill of anonymous conversations with people from around the world. 
-              Start chatting instantly with no registration required.
+            <p className="text-xl md:text-2xl text-gray-700 mb-8 max-w-3xl mx-auto">
+              Join millions of people chatting anonymously on ChatAndGossip.com. 
+              Make new friends, share stories, and discover amazing conversations.
             </p>
+            
+            {/* Online Users Display */}
+            <div className="mb-8">
+              <div className="flex items-center justify-center space-x-2 mb-4">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-gray-600 font-medium">
+                  {onlineUsers.length} people online now
+                </span>
+              </div>
+              
+              {/* Online Users Preview */}
+              <div className="flex justify-center space-x-2 mb-6">
+                {onlineUsers.slice(0, 5).map((user, index) => (
+                  <div key={user.id} className="relative">
+                    <div className={getProfilePicture(user.gender)}>
+                      {user.username.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="online-indicator online"></div>
+                  </div>
+                ))}
+                {onlineUsers.length > 5 && (
+                  <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-full">
+                    <span className="text-orange-600 font-bold">+{onlineUsers.length - 5}</span>
+                  </div>
+                )}
+              </div>
+            </div>
 
-            {/* Quick Start Section */}
-            <div className="max-w-md mx-auto mb-12">
-              <div className="card">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Start Chatting Now</h3>
-                <div className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Enter your username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="input-field"
-                    maxLength={20}
-                  />
-                  <button
-                    onClick={handleStartChat}
-                    className="btn-primary w-full"
-                  >
-                    <MessageCircle className="w-5 h-5 mr-2" />
-                    Start Free Chat
-                  </button>
-                </div>
+            {/* Quick Start */}
+            <div className="card max-w-md mx-auto mb-8">
+              <h3 className="text-xl font-semibold mb-4 text-gray-800">Start Chatting Now</h3>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Enter your username"
+                  value={anonymousUsername}
+                  onChange={(e) => setAnonymousUsername(e.target.value)}
+                  className="input-field"
+                  maxLength={20}
+                />
+                
+                <button
+                  onClick={() => setShowGenderModal(true)}
+                  className="w-full btn-outline text-left flex items-center justify-between"
+                >
+                  <span>Gender: {getGenderDisplay(selectedGender)}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                
+                <button
+                  onClick={handleAnonymousChat}
+                  className="w-full btn-primary"
+                >
+                  Start Free Chat
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Features Section */}
-      <div className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-20 px-4 bg-white/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Choose Your Experience
-            </h2>
-            <p className="text-lg text-gray-600">
-              Different ways to connect with people around the world
-            </p>
+            <h2 className="text-4xl font-bold mb-4 gradient-text">Why Choose ChatAndGossip?</h2>
+            <p className="text-xl text-gray-600">Experience the best random chat platform</p>
           </div>
-
+          
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Free Chat */}
-            <div className="card text-center hover:shadow-xl transition-shadow duration-300">
-              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageCircle className="w-8 h-8 text-primary-600" />
+            <div className="card text-center animate-slide-up">
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MessageCircle className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Free Random Chat</h3>
-              <p className="text-gray-600 mb-4">
-                Connect with random people instantly. No registration required.
-              </p>
-              <button
-                onClick={handleStartChat}
-                className="btn-outline"
-              >
-                Start Free
-              </button>
+              <h3 className="text-xl font-semibold mb-2">Free Random Chat</h3>
+              <p className="text-gray-600">Connect with random people instantly. No registration required!</p>
             </div>
-
-            {/* Gender Filter */}
-            <div className="card text-center hover:shadow-xl transition-shadow duration-300">
-              <div className="w-16 h-16 bg-secondary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <User className="w-8 h-8 text-secondary-600" />
+            
+            <div className="card text-center animate-slide-up" style={{ animationDelay: '0.2s' }}>
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Gender Filter</h3>
-              <p className="text-gray-600 mb-4">
-                Connect with people based on gender preference. ₹10/day
-              </p>
-              <button
-                onClick={onGenderFilter}
-                className="btn-secondary"
-              >
-                ₹10/day
-              </button>
+              <h3 className="text-xl font-semibold mb-2">Gender Filter</h3>
+              <p className="text-gray-600">Premium feature to connect with specific gender (₹10/day)</p>
             </div>
-
-            {/* Chat Rooms */}
-            <div className="card text-center hover:shadow-xl transition-shadow duration-300">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-green-600" />
+            
+            <div className="card text-center animate-slide-up" style={{ animationDelay: '0.4s' }}>
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Chat Rooms</h3>
-              <p className="text-gray-600 mb-4">
-                Join group chat rooms with multiple people. ₹5 per room
-              </p>
-              <button
-                onClick={onChatRoom}
-                className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
-              >
-                ₹5/room
-              </button>
+              <h3 className="text-xl font-semibold mb-2">Safe & Secure</h3>
+              <p className="text-gray-600">Your privacy is our priority. Chat anonymously with confidence.</p>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Benefits Section */}
-      <div className="py-24 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Premium Features */}
+      <section className="py-20 px-4">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Why Choose Chatter's Paradise?
-            </h2>
+            <h2 className="text-4xl font-bold mb-4 gradient-text">Premium Features</h2>
+            <p className="text-xl text-gray-600">Unlock advanced features for better experience</p>
           </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="w-6 h-6 text-primary-600" />
+          
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="card">
+              <div className="flex items-center mb-4">
+                <Star className="w-6 h-6 text-orange-500 mr-2" />
+                <h3 className="text-xl font-semibold">Gender Filter</h3>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Safe & Secure</h3>
-              <p className="text-gray-600">
-                Your privacy is our priority. Anonymous chatting with safety features.
-              </p>
+              <p className="text-gray-600 mb-4">Connect with people of your preferred gender for more meaningful conversations.</p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-orange-600">₹10/day</span>
+                <button
+                  onClick={() => onPaymentRequest('gender')}
+                  className="btn-secondary"
+                >
+                  Get Premium
+                </button>
+              </div>
             </div>
-
-            <div className="text-center">
-              <div className="w-12 h-12 bg-secondary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageCircle className="w-6 h-6 text-secondary-600" />
+            
+            <div className="card">
+              <div className="flex items-center mb-4">
+                <Users className="w-6 h-6 text-orange-500 mr-2" />
+                <h3 className="text-xl font-semibold">Chat Rooms</h3>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Instant Connection</h3>
-              <p className="text-gray-600">
-                Connect with people instantly. No waiting, no complicated setup.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Star className="w-6 h-6 text-green-600" />
+              <p className="text-gray-600 mb-4">Join exciting group chat rooms and meet multiple people at once.</p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-orange-600">₹5/room</span>
+                <button
+                  onClick={() => onPaymentRequest('room')}
+                  className="btn-secondary"
+                >
+                  Join Room
+                </button>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Premium Features</h3>
-              <p className="text-gray-600">
-                Enhanced experience with gender filters and chat rooms.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-6 h-6 text-purple-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Global Community</h3>
-              <p className="text-gray-600">
-                Connect with people from around the world, anytime, anywhere.
-              </p>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* CTA Section */}
-      <div className="py-24 bg-gradient-to-r from-primary-600 to-secondary-600">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Ready to Start Chatting?
-          </h2>
-          <p className="text-xl text-primary-100 mb-8">
-            Join thousands of users who are already connecting on Chatter's Paradise
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={handleStartChat}
-              className="bg-white text-primary-600 hover:bg-gray-100 font-medium py-3 px-6 rounded-lg transition-colors duration-200"
-            >
-              Start Free Chat
-              <ArrowRight className="w-5 h-5 ml-2 inline" />
-            </button>
-            <Link
-              to="/signup"
-              className="border-2 border-white text-white hover:bg-white hover:text-primary-600 font-medium py-3 px-6 rounded-lg transition-colors duration-200"
-            >
-              Create Account
-            </Link>
+      {/* Call to Action */}
+      <section className="py-20 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="card">
+            <h2 className="text-4xl font-bold mb-4 gradient-text">Ready to Start Chatting?</h2>
+            <p className="text-xl text-gray-600 mb-8">
+              Join thousands of users who are already making new friends on ChatAndGossip.com
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => {
+                  if (!anonymousUsername) {
+                    setAnonymousUsername('Anonymous' + Math.floor(Math.random() * 1000));
+                  }
+                  handleAnonymousChat();
+                }}
+                className="btn-primary text-lg px-8 py-4"
+              >
+                Start Free Chat Now
+              </button>
+              <Link to="/signup" className="btn-outline text-lg px-8 py-4">
+                Create Account
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8">
             <div>
-              <h3 className="text-xl font-bold mb-4">Chatter's Paradise</h3>
-              <p className="text-gray-400">
-                Connect with random people around the world through anonymous chat.
-              </p>
+              <h3 className="text-xl font-bold mb-4">ChatAndGossip.com</h3>
+              <p className="text-gray-400">Connect with the world through anonymous chat.</p>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Features</h4>
@@ -253,7 +289,7 @@ const LandingPage = ({ onStartChat, onGenderFilter, onChatRoom, isAuthenticated,
                 <li>Free Random Chat</li>
                 <li>Gender Filter</li>
                 <li>Chat Rooms</li>
-                <li>Anonymous Messaging</li>
+                <li>Anonymous Mode</li>
               </ul>
             </div>
             <div>
@@ -261,27 +297,69 @@ const LandingPage = ({ onStartChat, onGenderFilter, onChatRoom, isAuthenticated,
               <ul className="space-y-2 text-gray-400">
                 <li>Help Center</li>
                 <li>Contact Us</li>
-                <li>Report Issues</li>
-                <li>FAQ</li>
+                <li>Report Issue</li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><Link to="/privacy" className="hover:text-white">Privacy Policy</Link></li>
+                <li><Link to="/privacy" className="hover:text-orange-400">Privacy Policy</Link></li>
                 <li>Terms of Service</li>
-                <li>Community Guidelines</li>
                 <li>Cookie Policy</li>
               </ul>
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 Chatter's Paradise. All rights reserved.</p>
+            <p>&copy; 2024 ChatAndGossip.com. All rights reserved.</p>
           </div>
         </div>
       </footer>
-    </div>
-  )
-}
 
-export default LandingPage 
+      {/* Gender Selection Modal */}
+      {showGenderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="card max-w-md w-full mx-4">
+            <h3 className="text-xl font-semibold mb-4">Select Your Gender</h3>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleGenderSelection('male')}
+                className="w-full p-3 text-left rounded-lg border-2 border-orange-200 hover:border-orange-500 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="profile-picture male">M</div>
+                  <span>Male</span>
+                </div>
+              </button>
+              <button
+                onClick={() => handleGenderSelection('female')}
+                className="w-full p-3 text-left rounded-lg border-2 border-orange-200 hover:border-orange-500 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="profile-picture female">F</div>
+                  <span>Female</span>
+                </div>
+              </button>
+              <button
+                onClick={() => handleGenderSelection('not_disclosed')}
+                className="w-full p-3 text-left rounded-lg border-2 border-orange-200 hover:border-orange-500 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="profile-picture not-disclosed">?</div>
+                  <span>Not Disclosed</span>
+                </div>
+              </button>
+            </div>
+            <button
+              onClick={() => setShowGenderModal(false)}
+              className="w-full mt-4 btn-outline"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default LandingPage; 

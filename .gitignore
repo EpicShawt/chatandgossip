@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
-*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Environment variables
 .env
@@ -12,14 +14,11 @@ node_modules/
 # Build outputs
 dist/
 build/
-*/dist/
-*/build/
+*.tsbuildinfo
 
 # Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
+logs
+*.log
 
 # Runtime data
 pids
@@ -67,6 +66,7 @@ jspm_packages/
 
 # Nuxt.js build / generate output
 .nuxt
+dist
 
 # Gatsby files
 .cache/
@@ -96,10 +96,19 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# Firebase
-.firebase/
-firebase-debug.log
-firestore-debug.log
+# MongoDB data
+data/
 
-# Local development
-*.log 
+# SSL certificates
+*.pem
+*.key
+*.crt
+
+# Backup files
+*.bak
+*.backup
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3 

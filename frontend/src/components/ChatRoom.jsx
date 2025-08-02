@@ -1,295 +1,367 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useChat } from '../context/ChatContext'
-import { 
-  Send, 
-  LogOut, 
-  Users, 
-  MessageCircle, 
-  ArrowLeft, 
-  RefreshCw,
-  User,
-  Shield
-} from 'lucide-react'
-import toast from 'react-hot-toast'
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Send, ArrowLeft, Users, Filter, RefreshCw, Shield } from 'lucide-react';
+import { useChat } from '../context/ChatContext';
+import toast from 'react-hot-toast';
 
-const ChatRoom = ({ user, socket, onLogout }) => {
-  const navigate = useNavigate()
-  const messagesEndRef = useRef(null)
-  const [message, setMessage] = useState('')
-  const [showGenderFilter, setShowGenderFilter] = useState(false)
-  const [selectedGender, setSelectedGender] = useState('')
+const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
+  const navigate = useNavigate();
+  const messagesEndRef = useRef(null);
+  const [message, setMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [showGenderFilter, setShowGenderFilter] = useState(false);
+  const [selectedGender, setSelectedGender] = useState('any');
   
   const {
     messages,
-    isConnected,
     currentPartner,
-    isTyping,
-    partnerTyping,
-    chatType,
-    roomId,
-    participants,
+    isConnected,
     isSearching,
+    typingUsers,
+    findPartner,
     sendMessage,
     startTyping,
     stopTyping,
-    findPartner,
-    joinRoom,
     leaveChat,
-    nextPartner,
-    setupSocketListeners
-  } = useChat()
+    nextPartner
+  } = useChat();
 
   useEffect(() => {
-    setupSocketListeners(socket)
-    
-    // Auto-start searching for partner if not in a room
-    if (chatType !== 'room') {
-      findPartner(socket, user, chatType)
+    if (!user) {
+      navigate('/');
+      return;
     }
 
-    return () => {
-      leaveChat(socket)
-    }
-  }, [])
+    // Auto-scroll to bottom when new messages arrive
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, user, navigate]);
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  const handleSendMessage = (e) => {
-    e.preventDefault()
-    if (!message.trim()) return
-
-    sendMessage(socket, message, user)
-    setMessage('')
-  }
-
-  const handleTyping = (e) => {
-    setMessage(e.target.value)
-    if (e.target.value.length > 0) {
-      startTyping(socket)
+    // Start typing indicator
+    if (message && currentPartner) {
+      startTyping(currentPartner.id);
+      setIsTyping(true);
     } else {
-      stopTyping(socket)
+      stopTyping();
+      setIsTyping(false);
     }
-  }
+  }, [message, currentPartner, startTyping, stopTyping]);
+
+  // Auto-find partner when component mounts
+  useEffect(() => {
+    if (user && isConnected && !currentPartner && !isSearching) {
+      setTimeout(() => {
+        findPartner();
+      }, 1000);
+    }
+  }, [user, isConnected, currentPartner, isSearching, findPartner]);
+
+  const handleSendMessage = () => {
+    if (!message.trim() || !currentPartner) return;
+
+    sendMessage({
+      to: currentPartner.id,
+      content: message.trim()
+    });
+    setMessage('');
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleFindPartner = (genderFilter = null) => {
+    findPartner({ genderFilter });
+  };
 
   const handleNextPartner = () => {
-    nextPartner(socket, user)
-  }
+    if (currentPartner) {
+      leaveChat();
+      setTimeout(() => {
+        nextPartner();
+      }, 1000);
+    }
+  };
 
-  const handleGenderFilter = (gender) => {
-    setSelectedGender(gender)
-    setShowGenderFilter(false)
-    leaveChat(socket)
-    setTimeout(() => {
-      findPartner(socket, user, 'gender', gender)
-    }, 1000)
-  }
+  const getProfilePicture = (gender) => {
+    const baseClass = "profile-picture";
+    switch (gender) {
+      case 'male': return `${baseClass} male`;
+      case 'female': return `${baseClass} female`;
+      default: return `${baseClass} not-disclosed`;
+    }
+  };
 
-  const formatTime = (timestamp) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    })
-  }
+  const getGenderDisplay = (gender) => {
+    switch (gender) {
+      case 'male': return 'Male';
+      case 'female': return 'Female';
+      case 'not_disclosed': return 'Not Disclosed';
+      default: return 'Not Disclosed';
+    }
+  };
 
-  const isOwnMessage = (messageSender) => {
-    return messageSender === (user.username || user.email)
-  }
+  const getOnlineStatus = (partner) => {
+    if (partner?.isTestUser) return 'Online';
+    return partner?.isOnline ? 'Online' : 'Offline';
+  };
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-orange-100 to-orange-200">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate('/')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {chatType === 'room' ? 'Chat Room' : 'Random Chat'}
-              </h1>
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
-                {currentPartner && (
-                  <>
-                    <span>•</span>
-                    <span>Chatting with {currentPartner.username}</span>
-                  </>
-                )}
-                {chatType === 'room' && (
-                  <>
-                    <span>•</span>
-                    <span>{participants.length} participants</span>
-                  </>
-                )}
+      <div className="glass-effect sticky top-0 z-40">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate('/')}
+                className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
+              </button>
+              
+              <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <div className={getProfilePicture(user?.gender)}>
+                    {user?.username?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="online-indicator online"></div>
+                </div>
+                <div>
+                  <h2 className="font-semibold text-gray-800">{user?.username}</h2>
+                  <p className="text-sm text-gray-500">You</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center space-x-2">
-            {chatType !== 'room' && (
+            <div className="flex items-center space-x-2">
+              {currentPartner && (
+                <button
+                  onClick={() => setShowGenderFilter(true)}
+                  className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
+                  title="Gender Filter (Premium)"
+                >
+                  <Filter className="w-5 h-5 text-orange-600" />
+                </button>
+              )}
+              
               <button
-                onClick={() => setShowGenderFilter(!showGenderFilter)}
-                className="btn-outline text-sm"
+                onClick={onLogout}
+                className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
               >
-                <User className="w-4 h-4 mr-1" />
-                Filter
+                <Shield className="w-5 h-5 text-gray-600" />
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chat Area */}
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="card h-[600px] flex flex-col">
+          {/* Partner Info */}
+          {currentPartner ? (
+            <div className="flex items-center space-x-3 p-4 border-b border-orange-100">
+              <div className="relative">
+                <div className={getProfilePicture(currentPartner.gender)}>
+                  {currentPartner.username.charAt(0).toUpperCase()}
+                </div>
+                <div className={`online-indicator ${currentPartner.isOnline ? 'online' : 'offline'}`}></div>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-800">
+                  {currentPartner.username}
+                  {currentPartner.isTestUser && (
+                    <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded-full">
+                      Test User
+                    </span>
+                  )}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {getGenderDisplay(currentPartner.gender)} • {getOnlineStatus(currentPartner)}
+                </p>
+              </div>
+              <button
+                onClick={handleNextPartner}
+                className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
+                title="Next Partner"
+              >
+                <RefreshCw className="w-5 h-5 text-orange-600" />
+              </button>
+            </div>
+          ) : isSearching ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="text-center">
+                <div className="spinner mx-auto mb-4"></div>
+                <p className="text-gray-600">Searching for partner...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center p-8">
+              <div className="text-center">
+                <Users className="w-12 h-12 text-orange-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Partner Connected</h3>
+                <p className="text-gray-600 mb-4">Click the button below to find someone to chat with</p>
+                <button
+                  onClick={() => handleFindPartner()}
+                  className="btn-primary"
+                >
+                  Find Partner
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((msg, index) => (
+              <div
+                key={index}
+                className={`flex ${msg.from === user?.id ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`chat-bubble ${msg.from === user?.id ? 'sent' : 'received'}`}>
+                  <p className="text-sm">{msg.content}</p>
+                  <p className="text-xs opacity-70 mt-1">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+            
+            {/* Typing Indicator */}
+            {typingUsers.length > 0 && (
+              <div className="flex justify-start">
+                <div className="chat-bubble received">
+                  <div className="typing-indicator">
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                  </div>
+                </div>
+              </div>
             )}
-            <button
-              onClick={handleNextPartner}
-              disabled={isSearching}
-              className="btn-outline text-sm"
-            >
-              <RefreshCw className={`w-4 h-4 mr-1 ${isSearching ? 'animate-spin' : ''}`} />
-              Next
-            </button>
-            <button
-              onClick={onLogout}
-              className="btn-outline text-sm"
-            >
-              <LogOut className="w-4 h-4 mr-1" />
-              Logout
-            </button>
+            
+            <div ref={messagesEndRef} />
           </div>
+
+          {/* Message Input */}
+          {currentPartner && (
+            <div className="p-4 border-t border-orange-100">
+              <div className="flex space-x-3">
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type your message..."
+                  className="input-field flex-1"
+                  disabled={!currentPartner}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!message.trim() || !currentPartner}
+                  className="btn-primary px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Gender Filter Dropdown */}
-        {showGenderFilter && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Filter by Gender</h3>
-            <div className="flex space-x-2">
+        {/* Safety Notice */}
+        <div className="mt-6 p-4 bg-orange-50 rounded-xl border border-orange-200">
+          <div className="flex items-start space-x-3">
+            <Shield className="w-5 h-5 text-orange-600 mt-0.5" />
+            <div>
+              <h4 className="font-semibold text-orange-800 mb-1">Safety Reminder</h4>
+              <p className="text-sm text-orange-700">
+                Remember to never share personal information with strangers. 
+                ChatAndGossip.com is not responsible for any information shared during conversations.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Gender Filter Modal */}
+      {showGenderFilter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="card max-w-md w-full mx-4">
+            <h3 className="text-xl font-semibold mb-4">Gender Filter (Premium)</h3>
+            <p className="text-gray-600 mb-4">
+              Connect with people of your preferred gender. This is a premium feature.
+            </p>
+            
+            <div className="space-y-3 mb-6">
               <button
-                onClick={() => handleGenderFilter('male')}
-                className={`px-3 py-1 rounded text-sm ${
+                onClick={() => setSelectedGender('male')}
+                className={`w-full p-3 text-left rounded-lg border-2 transition-colors ${
                   selectedGender === 'male' 
-                    ? 'bg-primary-600 text-white' 
-                    : 'bg-white text-gray-700 border border-gray-300'
+                    ? 'border-orange-500 bg-orange-50' 
+                    : 'border-orange-200 hover:border-orange-500'
                 }`}
               >
-                Male
+                <div className="flex items-center space-x-3">
+                  <div className="profile-picture male">M</div>
+                  <span>Male</span>
+                </div>
               </button>
+              
               <button
-                onClick={() => handleGenderFilter('female')}
-                className={`px-3 py-1 rounded text-sm ${
+                onClick={() => setSelectedGender('female')}
+                className={`w-full p-3 text-left rounded-lg border-2 transition-colors ${
                   selectedGender === 'female' 
-                    ? 'bg-primary-600 text-white' 
-                    : 'bg-white text-gray-700 border border-gray-300'
+                    ? 'border-orange-500 bg-orange-50' 
+                    : 'border-orange-200 hover:border-orange-500'
                 }`}
               >
-                Female
+                <div className="flex items-center space-x-3">
+                  <div className="profile-picture female">F</div>
+                  <span>Female</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setSelectedGender('any')}
+                className={`w-full p-3 text-left rounded-lg border-2 transition-colors ${
+                  selectedGender === 'any' 
+                    ? 'border-orange-500 bg-orange-50' 
+                    : 'border-orange-200 hover:border-orange-500'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="profile-picture not-disclosed">?</div>
+                  <span>Any Gender</span>
+                </div>
+              </button>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowGenderFilter(false);
+                  onPaymentRequest('gender');
+                }}
+                className="btn-primary flex-1"
+              >
+                Get Premium (₹10/day)
               </button>
               <button
-                onClick={() => handleGenderFilter('any')}
-                className={`px-3 py-1 rounded text-sm ${
-                  selectedGender === 'any' 
-                    ? 'bg-primary-600 text-white' 
-                    : 'bg-white text-gray-700 border border-gray-300'
-                }`}
+                onClick={() => setShowGenderFilter(false)}
+                className="btn-outline flex-1"
               >
-                Any
+                Cancel
               </button>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {isSearching && (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Searching for a partner...</p>
-          </div>
-        )}
-
-        {!isSearching && messages.length === 0 && (
-          <div className="text-center py-8">
-            <MessageCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No messages yet. Start the conversation!</p>
-          </div>
-        )}
-
-        {messages.map((msg, index) => (
-          <div
-            key={msg.id || index}
-            className={`flex ${isOwnMessage(msg.sender) ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className={`max-w-xs lg:max-w-md ${isOwnMessage(msg.sender) ? 'order-2' : 'order-1'}`}>
-              <div className={`chat-bubble ${isOwnMessage(msg.sender) ? 'sent' : 'received'}`}>
-                <div className="text-sm font-medium mb-1">
-                  {msg.sender}
-                </div>
-                <div className="text-sm">
-                  {msg.text}
-                </div>
-                <div className="text-xs opacity-70 mt-1">
-                  {formatTime(msg.timestamp)}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {partnerTyping && (
-          <div className="flex justify-start">
-            <div className="chat-bubble received">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Message Input */}
-      <div className="bg-white border-t border-gray-200 p-4">
-        <form onSubmit={handleSendMessage} className="flex space-x-4">
-          <input
-            type="text"
-            value={message}
-            onChange={handleTyping}
-            placeholder="Type your message..."
-            className="flex-1 input-field"
-            disabled={isSearching}
-          />
-          <button
-            type="submit"
-            disabled={!message.trim() || isSearching}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
-      </div>
-
-      {/* Safety Notice */}
-      <div className="bg-yellow-50 border-t border-yellow-200 px-6 py-3">
-        <div className="flex items-center space-x-2 text-sm text-yellow-800">
-          <Shield className="w-4 h-4" />
-          <span>
-            <strong>Safety Notice:</strong> Be careful with personal information. 
-            Chatter's Paradise is not responsible for the individuals you meet or information shared.
-          </span>
         </div>
-      </div>
+      )}
     </div>
-  )
-}
+  );
+};
 
-export default ChatRoom 
+export default ChatRoom; 

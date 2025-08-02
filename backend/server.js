@@ -1,135 +1,409 @@
-const express = require('express')
-const http = require('http')
-const socketIo = require('socket.io')
-const cors = require('cors')
-const helmet = require('helmet')
-const compression = require('compression')
-const rateLimit = require('express-rate-limit')
-require('dotenv').config()
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+const connectDB = require('./config/database');
+require('dotenv').config();
 
-const app = express()
-const server = http.createServer(app)
+const ChatManager = require('./services/ChatManager');
+const User = require('./models/User');
+const Message = require('./models/Message');
+const ChatRoom = require('./models/ChatRoom');
+
+const app = express();
+const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     methods: ["GET", "POST"]
   }
-})
+});
+
+// Initialize chat manager
+const chatManager = new ChatManager();
+
+// Connect to MongoDB
+connectDB();
 
 // Middleware
-app.use(helmet())
-app.use(compression())
+app.use(helmet());
+app.use(compression());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true
-}))
+}));
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100 // limit each IP to 100 requests per windowMs
-})
-app.use('/api/', limiter)
+});
+app.use(limiter);
 
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
-
-// Import routes
-const authRoutes = require('./routes/auth')
-const userRoutes = require('./routes/users')
-const paymentRoutes = require('./routes/payments')
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/auth', authRoutes)
-app.use('/api/users', userRoutes)
-app.use('/api/payments', paymentRoutes)
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/payments', require('./routes/payments'));
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  })
-})
+    stats: chatManager.getStats(),
+    database: 'MongoDB Atlas'
+  });
+});
+
+// Get online users
+app.get('/api/users/online', async (req, res) => {
+  try {
+    const onlineUsers = await User.find({ isOnline: true })
+      .select('username gender lastSeen')
+      .sort({ lastSeen: -1 });
+    res.json(onlineUsers);
+  } catch (error) {
+    console.error('Error fetching online users:', error);
+    res.status(500).json({ error: 'Failed to fetch online users' });
+  }
+});
 
 // Socket.io connection handling
-const ChatManager = require('./services/ChatManager')
-const chatManager = new ChatManager(io)
-
 io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`)
+  console.log(`User connected: ${socket.id}`);
 
-  // Handle user joining
-  socket.on('join', (userData) => {
-    chatManager.addUser(socket.id, userData)
-    socket.emit('connected', { message: 'Connected to chat server' })
-  })
+  // User joins with their data
+  socket.on('user_join', async (userData) => {
+    try {
+      let user;
+      
+      // Check if user exists
+      if (userData.email) {
+        user = await User.findOne({ email: userData.email });
+        if (user) {
+          user.isOnline = true;
+          user.socketId = socket.id;
+          user.lastSeen = new Date();
+          await user.save();
+        }
+      }
+      
+      // If no existing user, create anonymous user
+      if (!user) {
+        user = new User({
+          username: userData.username,
+          gender: userData.gender || 'not_disclosed',
+          isOnline: true,
+          isAnonymous: !userData.email,
+          socketId: socket.id,
+          lastSeen: new Date()
+        });
+        await user.save();
+      }
+      
+      socket.userId = user._id;
+      socket.emit('user_joined', user);
+      
+      // Broadcast online status
+      io.emit('user_online', {
+        id: user._id,
+        username: user.username,
+        gender: user.gender,
+        isOnline: true
+      });
+    } catch (error) {
+      console.error('Error in user_join:', error);
+      socket.emit('error', { message: 'Failed to join chat' });
+    }
+  });
 
-  // Handle finding a partner
-  socket.on('find_partner', (data) => {
-    chatManager.findPartner(socket.id, data)
-  })
+  // Find partner
+  socket.on('find_partner', async (data) => {
+    try {
+      const user = await User.findById(socket.userId);
+      if (!user) return;
 
-  // Handle private messages
-  socket.on('private_message', (data) => {
-    chatManager.sendPrivateMessage(socket.id, data)
-  })
+      // Add to waiting list
+      chatManager.waitingUsers.set(user._id.toString(), user);
+      
+      // Look for partner
+      const partner = chatManager.findPartner(user._id.toString(), data.genderFilter);
+      
+      if (partner) {
+        // Pair users
+        const pairId = chatManager.pairUsers(user, partner);
+        
+        // Notify both users
+        socket.emit('partner_found', {
+          id: partner._id || partner.id,
+          username: partner.username,
+          gender: partner.gender,
+          isTestUser: partner.isTestUser
+        });
+        
+        // If partner is test user, send welcome message
+        if (partner.isTestUser) {
+          setTimeout(async () => {
+            const welcomeMessage = chatManager.getTestUserReply("hello");
+            const messageObj = await chatManager.sendPrivateMessage(partner.id, user._id.toString(), welcomeMessage);
+            socket.emit('message_received', messageObj);
+          }, 1000);
+        }
+      } else {
+        socket.emit('searching', { message: 'Searching for partner...' });
+      }
+    } catch (error) {
+      console.error('Error in find_partner:', error);
+      socket.emit('error', { message: 'Failed to find partner' });
+    }
+  });
 
-  // Handle typing indicators
+  // Send private message
+  socket.on('private_message', async (data) => {
+    try {
+      const user = await User.findById(socket.userId);
+      if (!user) return;
+
+      // Find current partner
+      const chatPair = chatManager.findChatPair(user._id.toString(), data.to);
+      if (!chatPair) return;
+
+      // Save message to database
+      const message = new Message({
+        from: user._id,
+        to: data.to,
+        content: data.content,
+        messageType: 'text'
+      });
+      await message.save();
+
+      // Send message
+      const messageObj = chatManager.sendPrivateMessage(user._id.toString(), data.to, data.content);
+      
+      // Emit to sender
+      socket.emit('message_sent', messageObj);
+      
+      // Emit to receiver
+      const partnerSocket = Array.from(io.sockets.sockets.values())
+        .find(s => s.userId === data.to);
+      
+      if (partnerSocket) {
+        partnerSocket.emit('message_received', messageObj);
+      }
+
+      // If sending to test user, get auto-reply
+      const partner = chatManager.users.get(data.to);
+      if (partner && partner.isTestUser) {
+        setTimeout(async () => {
+          const reply = chatManager.getTestUserReply(data.content);
+          const replyObj = await chatManager.sendPrivateMessage(partner.id, user._id.toString(), reply);
+          
+          // Save reply to database
+          const replyMessage = new Message({
+            from: partner.id,
+            to: user._id,
+            content: reply,
+            messageType: 'text'
+          });
+          await replyMessage.save();
+          
+          socket.emit('message_received', replyObj);
+        }, 1000 + Math.random() * 2000); // Random delay 1-3 seconds
+      }
+    } catch (error) {
+      console.error('Error in private_message:', error);
+      socket.emit('error', { message: 'Failed to send message' });
+    }
+  });
+
+  // Typing indicators
   socket.on('typing', (data) => {
-    chatManager.handleTyping(socket.id, data, true)
-  })
+    const user = chatManager.users.get(socket.userId);
+    if (!user) return;
+
+    chatManager.handleTyping(user.id, true);
+    
+    // Find partner and notify
+    const chatPair = chatManager.findChatPair(user.id, data.to);
+    if (chatPair) {
+      const partnerSocket = Array.from(io.sockets.sockets.values())
+        .find(s => s.userId === data.to);
+      
+      if (partnerSocket) {
+        partnerSocket.emit('partner_typing', { from: user.id });
+      }
+    }
+  });
 
   socket.on('stop_typing', (data) => {
-    chatManager.handleTyping(socket.id, data, false)
-  })
+    const user = chatManager.users.get(socket.userId);
+    if (!user) return;
 
-  // Handle room operations
-  socket.on('join_room', (data) => {
-    chatManager.joinRoom(socket.id, data)
-  })
+    chatManager.handleTyping(user.id, false);
+    
+    // Find partner and notify
+    const chatPair = chatManager.findChatPair(user.id, data.to);
+    if (chatPair) {
+      const partnerSocket = Array.from(io.sockets.sockets.values())
+        .find(s => s.userId === data.to);
+      
+      if (partnerSocket) {
+        partnerSocket.emit('partner_stopped_typing', { from: user.id });
+      }
+    }
+  });
 
-  socket.on('room_message', (data) => {
-    chatManager.sendRoomMessage(socket.id, data)
-  })
+  // Leave chat
+  socket.on('leave_chat', () => {
+    const user = chatManager.users.get(socket.userId);
+    if (!user) return;
 
-  socket.on('leave_room', (data) => {
-    chatManager.leaveRoom(socket.id, data)
-  })
+    chatManager.leaveChat(user.id);
+    
+    // Notify partner
+    const chatPair = Array.from(chatManager.chatPairs.values())
+      .find(pair => pair.user1 === user.id || pair.user2 === user.id);
+    
+    if (chatPair) {
+      const partnerId = chatPair.user1 === user.id ? chatPair.user2 : chatPair.user1;
+      const partnerSocket = Array.from(io.sockets.sockets.values())
+        .find(s => s.userId === partnerId);
+      
+      if (partnerSocket) {
+        partnerSocket.emit('partner_left');
+      }
+    }
+  });
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`)
-    chatManager.removeUser(socket.id)
-  })
+  // Room management
+  socket.on('join_room', async (data) => {
+    try {
+      const user = await User.findById(socket.userId);
+      if (!user) return;
 
-  // Handle leaving chat
-  socket.on('leave_chat', (data) => {
-    chatManager.leaveChat(socket.id, data)
-  })
-})
+      let room = await ChatRoom.findById(data.roomId);
+      if (!room) {
+        room = new ChatRoom({
+          _id: data.roomId,
+          name: `Room ${data.roomId}`,
+          participants: [user._id]
+        });
+        await room.save();
+      } else {
+        if (!room.participants.includes(user._id)) {
+          room.participants.push(user._id);
+          await room.save();
+        }
+      }
 
-// Error handling middleware
+      chatManager.joinRoom(user._id.toString(), data.roomId);
+      socket.join(data.roomId);
+      
+      socket.emit('room_joined', {
+        roomId: data.roomId,
+        user: user
+      });
+    } catch (error) {
+      console.error('Error in join_room:', error);
+      socket.emit('error', { message: 'Failed to join room' });
+    }
+  });
+
+  socket.on('leave_room', async (data) => {
+    try {
+      const user = await User.findById(socket.userId);
+      if (!user) return;
+
+      const room = await ChatRoom.findById(data.roomId);
+      if (room) {
+        room.participants = room.participants.filter(p => p.toString() !== user._id.toString());
+        await room.save();
+      }
+
+      chatManager.leaveRoom(user._id.toString());
+      socket.leave(data.roomId);
+    } catch (error) {
+      console.error('Error in leave_room:', error);
+    }
+  });
+
+  socket.on('room_message', async (data) => {
+    try {
+      const user = await User.findById(socket.userId);
+      if (!user) return;
+
+      const room = await ChatRoom.findById(data.roomId);
+      if (!room) return;
+
+      // Add message to room
+      room.messages.push({
+        from: user._id,
+        content: data.content,
+        messageType: 'text'
+      });
+      await room.save();
+
+      const messageObj = chatManager.sendRoomMessage(user._id.toString(), data.roomId, data.content);
+      
+      if (messageObj) {
+        io.to(data.roomId).emit('room_message', messageObj);
+      }
+    } catch (error) {
+      console.error('Error in room_message:', error);
+      socket.emit('error', { message: 'Failed to send room message' });
+    }
+  });
+
+  // Disconnect
+  socket.on('disconnect', async () => {
+    console.log(`User disconnected: ${socket.id}`);
+    
+    if (socket.userId) {
+      try {
+        const user = await User.findById(socket.userId);
+        if (user) {
+          user.isOnline = false;
+          user.lastSeen = new Date();
+          user.socketId = null;
+          await user.save();
+          
+          // Broadcast offline status
+          io.emit('user_offline', {
+            id: user._id,
+            username: user.username,
+            lastSeen: user.lastSeen
+          });
+        }
+      } catch (error) {
+        console.error('Error updating user status:', error);
+      }
+    }
+    
+    chatManager.removeUser(socket.id);
+  });
+});
+
+// Error handling
 app.use((err, req, res, next) => {
-  console.error(err.stack)
-  res.status(500).json({ 
-    error: 'Something went wrong!',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
-  })
-})
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
 
 // 404 handler
 app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' })
-})
+  res.status(404).json({ error: 'Route not found' });
+});
 
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`)
-  console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`)
-  console.log(`🔌 Socket.io server ready`)
-})
-
-module.exports = { app, server, io } 
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Chat manager initialized with test user: Sarah`);
+  console.log(`Database: MongoDB Atlas`);
+}); 
