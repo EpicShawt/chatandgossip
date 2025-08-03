@@ -96,9 +96,55 @@ export const ChatProvider = ({ children }) => {
   const messageListenerRef = useRef(null);
   const onlineUsersListenerRef = useRef(null);
 
+  // Initialize Firebase chat provider
   useEffect(() => {
     console.log('ChatContext: Firebase chat provider initialized');
     dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
+    
+    // Set up periodic cleanup of stale partner connections
+    const cleanupInterval = setInterval(async () => {
+      try {
+        const app = getApp();
+        const rtdb = getDatabase(app);
+        const onlineUsersRef = ref(rtdb, 'online_users');
+        
+        const snapshot = await get(onlineUsersRef);
+        if (snapshot.exists()) {
+          const users = snapshot.val();
+          let cleanedCount = 0;
+          
+          for (const [userId, userData] of Object.entries(users)) {
+            if (userData.currentPartner) {
+              // Check if the partner still exists and has this user as their partner
+              const partnerRef = ref(rtdb, `online_users/${userData.currentPartner}`);
+              const partnerSnapshot = await get(partnerRef);
+              
+              if (!partnerSnapshot.exists() || 
+                  partnerSnapshot.val().currentPartner !== userId) {
+                // Partner doesn't exist or doesn't have this user as partner - clear the connection
+                await set(ref(rtdb, `online_users/${userId}`), {
+                  ...userData,
+                  currentPartner: null,
+                  isSearching: false
+                });
+                cleanedCount++;
+                console.log(`Cleaned stale partner connection for user: ${userId}`);
+              }
+            }
+          }
+          
+          if (cleanedCount > 0) {
+            console.log(`Cleaned ${cleanedCount} stale partner connections`);
+          }
+        }
+      } catch (error) {
+        console.error('Error during cleanup:', error);
+      }
+    }, 30000); // Run every 30 seconds
+    
+    return () => {
+      clearInterval(cleanupInterval);
+    };
   }, []);
 
   const joinChat = async (userData) => {
@@ -421,21 +467,53 @@ export const ChatProvider = ({ children }) => {
       messageListenerRef.current = null;
     }
     
+    const currentUserId = currentUser?.uid || 'guest';
+    
+    // Clear current partner status for both users
+    if (state.currentPartner) {
+      try {
+        const app = getApp();
+        const rtdb = getDatabase(app);
+        
+        // Clear current user's partner status
+        const currentUserRef = ref(rtdb, `online_users/${currentUserId}`);
+        const currentUserSnapshot = await get(currentUserRef);
+        const currentUserData = currentUserSnapshot.val() || {};
+        await set(currentUserRef, {
+          ...currentUserData,
+          currentPartner: null,
+          isSearching: false
+        });
+        
+        // Clear partner's partner status
+        const partnerRef = ref(rtdb, `online_users/${state.currentPartner.uid}`);
+        const partnerSnapshot = await get(partnerRef);
+        const partnerData = partnerSnapshot.val() || {};
+        await set(partnerRef, {
+          ...partnerData,
+          currentPartner: null,
+          isSearching: false
+        });
+        
+        console.log('Cleared partner status for both users');
+      } catch (error) {
+        console.error('Error clearing partner status:', error);
+      }
+    }
+    
     // Remove user from online users
     try {
-      const userId = currentUser?.uid || 'guest';
       const app = getApp();
       const rtdb = getDatabase(app);
-      const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
+      const onlineUsersRef = ref(rtdb, `online_users/${currentUserId}`);
       await set(onlineUsersRef, null);
       
-      console.log('Removed user from online list:', userId);
+      console.log('Removed user from online list:', currentUserId);
     } catch (error) {
       console.error('Error removing user from online list:', error);
     }
     
     if (state.currentPartner) {
-      const currentUserId = currentUser?.uid || 'guest';
       const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
       
       try {
@@ -458,10 +536,44 @@ export const ChatProvider = ({ children }) => {
   const nextPartner = async () => {
     console.log('Finding next partner');
     
+    const currentUserId = currentUser?.uid || 'guest';
+    
     // Clear current chat
     if (messageListenerRef.current) {
       messageListenerRef.current();
       messageListenerRef.current = null;
+    }
+    
+    // Clear current partner status for both users
+    if (state.currentPartner) {
+      try {
+        const app = getApp();
+        const rtdb = getDatabase(app);
+        
+        // Clear current user's partner status
+        const currentUserRef = ref(rtdb, `online_users/${currentUserId}`);
+        const currentUserSnapshot = await get(currentUserRef);
+        const currentUserData = currentUserSnapshot.val() || {};
+        await set(currentUserRef, {
+          ...currentUserData,
+          currentPartner: null,
+          isSearching: false
+        });
+        
+        // Clear partner's partner status
+        const partnerRef = ref(rtdb, `online_users/${state.currentPartner.uid}`);
+        const partnerSnapshot = await get(partnerRef);
+        const partnerData = partnerSnapshot.val() || {};
+        await set(partnerRef, {
+          ...partnerData,
+          currentPartner: null,
+          isSearching: false
+        });
+        
+        console.log('Cleared partner status for both users in nextPartner');
+      } catch (error) {
+        console.error('Error clearing partner status in nextPartner:', error);
+      }
     }
     
     // Clear current partner

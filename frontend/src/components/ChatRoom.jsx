@@ -356,30 +356,33 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                         {messages.map((msg, index) => (
-               <div
-                 key={msg.messageId || index}
-                 className={`flex ${msg.from === currentUserData?.id || msg.from === currentUserData?.uid ? 'justify-end' : 'justify-start'}`}
-               >
-                 <div className={`chat-bubble ${msg.from === currentUserData?.id || msg.from === currentUserData?.uid ? 'sent' : 'received'}`}>
-                   <div className="flex items-end space-x-2">
-                     {msg.from !== currentUserData?.id && msg.from !== currentUserData?.uid && (
-                       <div className="flex-shrink-0">
-                         <div className={`w-6 h-6 rounded-full bg-gradient-to-r from-pink-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold`}>
-                           {currentPartner?.username?.charAt(0).toUpperCase()}
-                         </div>
-                       </div>
-                     )}
-                     <div className="flex-1">
-                       <p className="text-sm">{msg.content}</p>
-                       <p className="text-xs opacity-70 mt-1">
-                         {new Date(msg.timestamp).toLocaleTimeString()}
-                       </p>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-             ))}
+            {messages.map((msg, index) => {
+              const isOwnMessage = msg.from === currentUserData?.id || msg.from === currentUserData?.uid;
+              return (
+                <div
+                  key={msg.messageId || index}
+                  className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`chat-bubble ${isOwnMessage ? 'sent' : 'received'}`}>
+                    <div className={`flex items-end space-x-2 ${isOwnMessage ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                      {!isOwnMessage && (
+                        <div className="flex-shrink-0">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getProfilePicture(currentPartner?.gender, currentPartner?.profilePicture)}`}>
+                            {currentPartner?.username?.charAt(0).toUpperCase()}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm">{msg.content}</p>
+                        <p className={`text-xs opacity-70 mt-1 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
             
             {/* Typing Indicator */}
             {typingUsers.length > 0 && (
