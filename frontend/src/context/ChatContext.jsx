@@ -113,14 +113,15 @@ export const ChatProvider = ({ children }) => {
       const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       
-      const userOnlineData = {
-        uid: userId,
-        username: username,
-        isOnline: true,
-        lastSeen: Date.now(),
-        isGuest: !currentUser,
-        gender: userData?.gender || 'not_disclosed'
-      };
+             const userOnlineData = {
+         uid: userId,
+         username: username,
+         isOnline: true,
+         lastSeen: Date.now(),
+         isGuest: !currentUser,
+         gender: userData?.gender || 'not_disclosed',
+         isSearching: false
+       };
       
       console.log('Adding user to online list:', userOnlineData);
       await set(onlineUsersRef, userOnlineData);
@@ -154,14 +155,57 @@ export const ChatProvider = ({ children }) => {
       return;
     }
     
+    // If already have a partner, don't search again
+    if (state.currentPartner) {
+      console.log('Already have a partner, skipping search...');
+      return;
+    }
+    
     console.log('Finding partner with options:', options);
     console.log('Current user:', currentUser);
     dispatch({ type: 'SET_SEARCHING', payload: true });
     toast.loading('Searching for partner...');
 
+    // Mark current user as searching
+    const currentUserId = currentUser?.uid || 'guest';
+    try {
+      const { set, ref, getDatabase } = await import('firebase/database');
+      const { getApp } = await import('firebase/app');
+      
+      const app = getApp();
+      const rtdb = getDatabase(app);
+      const userRef = ref(rtdb, `online_users/${currentUserId}`);
+      
+      // Update user status to searching
+      await set(userRef, {
+        ...(await get(userRef)).val(),
+        isSearching: true
+      });
+    } catch (error) {
+      console.error('Error updating search status:', error);
+    }
+
     // Set a 15-second timeout for demo fallback
-    const demoTimeout = setTimeout(() => {
+    const demoTimeout = setTimeout(async () => {
       console.log('15 seconds passed, connecting to demo partner');
+      
+      // Mark user as no longer searching
+      try {
+        const { set, ref, getDatabase } = await import('firebase/database');
+        const { getApp } = await import('firebase/app');
+        
+        const app = getApp();
+        const rtdb = getDatabase(app);
+        const userRef = ref(rtdb, `online_users/${currentUserId}`);
+        
+        await set(userRef, {
+          ...(await get(userRef)).val(),
+          isSearching: false
+        });
+      } catch (updateError) {
+        console.error('Error updating search status:', updateError);
+      }
+      
       const demoPartner = {
         uid: 'demo-partner-123',
         username: 'Sarah',
@@ -188,7 +232,8 @@ export const ChatProvider = ({ children }) => {
       // Filter out current user and find available partners
       let availableUsers = onlineUsers.filter(user => 
         user.uid !== currentUserId && 
-        user.isOnline
+        user.isOnline &&
+        !user.isSearching // Don't pair with users who are already searching
       );
 
       // Apply gender filter if specified
@@ -211,13 +256,42 @@ export const ChatProvider = ({ children }) => {
         const partner = availableUsers[randomIndex];
         
         console.log('Found real partner:', partner);
+        
+        // Create a unique room ID for this chat
+        const roomId = `chat_${Math.min(currentUserId, partner.uid)}_${Math.max(currentUserId, partner.uid)}`;
+        
+        // Join the chat room
+        await joinChatRoom(roomId, { uid: currentUserId });
+        
+        // Mark both users as no longer searching
+        try {
+          const { set, ref, getDatabase } = await import('firebase/database');
+          const { getApp } = await import('firebase/app');
+          
+          const app = getApp();
+          const rtdb = getDatabase(app);
+          
+          // Mark current user as no longer searching
+          const currentUserRef = ref(rtdb, `online_users/${currentUserId}`);
+          await set(currentUserRef, {
+            ...(await get(currentUserRef)).val(),
+            isSearching: false
+          });
+          
+          // Mark partner as no longer searching
+          const partnerRef = ref(rtdb, `online_users/${partner.uid}`);
+          await set(partnerRef, {
+            ...(await get(partnerRef)).val(),
+            isSearching: false
+          });
+        } catch (error) {
+          console.error('Error updating search status:', error);
+        }
+        
+        // Set the partner
         dispatch({ type: 'SET_PARTNER', payload: partner });
         dispatch({ type: 'SET_SEARCHING', payload: false });
         toast.success(`Connected with ${partner.username || partner.displayName}!`);
-        
-        // Create or join chat room
-        const roomId = `chat_${Date.now()}_${partner.uid}`;
-        await joinChatRoom(roomId, { uid: currentUserId });
         
         // Listen to messages in this room
         if (messageListenerRef.current) {
@@ -230,8 +304,8 @@ export const ChatProvider = ({ children }) => {
         
       } else {
         // No real users available, but don't connect to demo yet
-        // Let the timeout handle it after 10 seconds
-        console.log('No real users available, waiting 10 seconds before demo fallback');
+        // Let the timeout handle it after 15 seconds
+        console.log('No real users available, waiting 15 seconds before demo fallback');
         console.log('This means either:');
         console.log('1. No other users are online');
         console.log('2. You are the only user online');
@@ -240,6 +314,23 @@ export const ChatProvider = ({ children }) => {
     } catch (error) {
       console.error('Error finding partner:', error);
       clearTimeout(demoTimeout);
+      
+      // Mark user as no longer searching
+      try {
+        const { set, ref, getDatabase } = await import('firebase/database');
+        const { getApp } = await import('firebase/app');
+        
+        const app = getApp();
+        const rtdb = getDatabase(app);
+        const userRef = ref(rtdb, `online_users/${currentUserId}`);
+        
+        await set(userRef, {
+          ...(await get(userRef)).val(),
+          isSearching: false
+        });
+      } catch (updateError) {
+        console.error('Error updating search status:', updateError);
+      }
       
       // Fallback to demo partner immediately on error
       const demoPartner = {
@@ -305,16 +396,17 @@ export const ChatProvider = ({ children }) => {
           dispatch({ type: 'ADD_MESSAGE', payload: partnerMessage });
         }, 1000 + Math.random() * 2000);
         
-      } else {
-        // Real user - send via Firebase
-        const roomId = `chat_${Date.now()}_${state.currentPartner.uid}`;
-        await firebaseSendMessage(roomId, {
-          ...messageData,
-          from: currentUser?.uid || 'guest',
-          to: state.currentPartner.uid,
-          timestamp: new Date().toISOString()
-        });
-      }
+             } else {
+         // Real user - send via Firebase
+         const currentUserId = currentUser?.uid || 'guest';
+         const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
+         await firebaseSendMessage(roomId, {
+           ...messageData,
+           from: currentUser?.uid || 'guest',
+           to: state.currentPartner.uid,
+           timestamp: new Date().toISOString()
+         });
+       }
       
       toast.success('Message sent!');
     } catch (error) {
@@ -357,10 +449,11 @@ export const ChatProvider = ({ children }) => {
       console.error('Error removing user from online list:', error);
     }
     
-    if (state.currentPartner && !state.currentPartner.isTestUser) {
-      const roomId = `chat_${currentUser?.uid}_${state.currentPartner.uid}`;
-      await leaveChatRoom(roomId, currentUser?.uid);
-    }
+         if (state.currentPartner && !state.currentPartner.isTestUser) {
+       const currentUserId = currentUser?.uid || 'guest';
+       const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
+       await leaveChatRoom(roomId, currentUserId);
+     }
     
     dispatch({ type: 'CLEAR_CHAT' });
   };
