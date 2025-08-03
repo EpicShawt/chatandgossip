@@ -45,40 +45,18 @@ const Signup = ({ onSignup, onBack }) => {
     setIsLoading(true)
 
     try {
-      // Register with backend API
-      const response = await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: formData.username,
-          email: formData.email,
-          password: formData.password,
-          phone: formData.phone
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Registration failed')
-      }
-
-      // Store token
-      localStorage.setItem('token', data.token)
+      // Use Firebase signup instead of backend API
+      const userData = await signup(formData.email, formData.password, formData.username)
       
-      // Create user data for app
-      const userData = {
-        id: data.user.id,
-        uniqueId: data.user.uniqueId,
-        username: data.user.username,
-        email: data.user.email,
-        phone: data.user.phone,
+      const userInfo = {
+        id: userData.uid,
+        email: userData.email,
+        username: userData.displayName || userData.username,
+        phone: formData.phone,
         isAuthenticated: true
       }
       
-      onSignup(userData)
+      onSignup(userInfo)
       toast.success('Account created successfully!')
     } catch (error) {
       console.error('Signup error:', error)

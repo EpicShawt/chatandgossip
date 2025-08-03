@@ -13,7 +13,7 @@ import { FirebaseProvider, useFirebase } from './context/FirebaseContext';
 
 // Separate component that uses Firebase hooks
 function AppContent() {
-  const { currentUser, getOnlineUsers } = useFirebase();
+  const { currentUser, logout: firebaseLogout, getOnlineUsers } = useFirebase();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -38,7 +38,7 @@ function AppContent() {
     if (currentUser) {
       setUser({
         id: currentUser.uid,
-        username: currentUser.displayName || currentUser.email,
+        username: currentUser.displayName || currentUser.email?.split('@')[0],
         email: currentUser.email
       });
       setIsAuthenticated(true);
@@ -60,18 +60,20 @@ function AppContent() {
 
   const handleLogin = (userData) => {
     console.log('Logging in user:', userData);
-
-    
-    // Set user state manually for demo mode
-    setUser(userData);
-    setIsAuthenticated(true);
+    // User state will be updated by Firebase auth listener
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     console.log('Logging out user');
-    // Clear user state manually for demo mode
-    setUser(null);
-    setIsAuthenticated(false);
+    try {
+      await firebaseLogout();
+      // User state will be cleared by Firebase auth listener
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Fallback: clear user state manually
+      setUser(null);
+      setIsAuthenticated(false);
+    }
   };
 
   const handlePaymentRequest = (type) => {

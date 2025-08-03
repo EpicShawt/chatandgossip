@@ -31,37 +31,17 @@ const Login = ({ onLogin, onBack }) => {
     setIsLoading(true)
 
     try {
-      // Login with backend API
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed')
-      }
-
-      // Store token
-      localStorage.setItem('token', data.token)
+      // Use Firebase login instead of backend API
+      const userData = await login(formData.email, formData.password)
       
-      const userData = {
-        id: data.user.id,
-        uniqueId: data.user.uniqueId,
-        email: data.user.email,
-        username: data.user.username,
-        phone: data.user.phone,
+      const userInfo = {
+        id: userData.uid,
+        email: userData.email,
+        username: userData.displayName || userData.email.split('@')[0],
         isAuthenticated: true
       }
       
-      onLogin(userData)
+      onLogin(userInfo)
       toast.success('Login successful!')
     } catch (error) {
       console.error('Login error:', error)
