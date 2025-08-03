@@ -17,20 +17,17 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
   const [hasStartedSearching, setHasStartedSearching] = useState(false);
   
   const {
-    messages,
     currentPartner,
-    isConnected,
     isSearching,
+    messages,
     typingUsers,
-    activeUsers,
+    joinChat,
     findPartner,
     sendMessage,
-    startTyping,
-    stopTyping,
     leaveChat,
     nextPartner,
-    joinChat,
     getActiveUsers,
+    cleanupDuplicateUsers,
     testFirebaseConnection,
     addMultipleTestUsers
   } = useChat();
@@ -381,6 +378,12 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                           className="btn-secondary w-full text-xs"
                         >
                           Refresh Users
+                        </button>
+                        <button
+                          onClick={() => cleanupDuplicateUsers()}
+                          className="btn-secondary w-full text-xs"
+                        >
+                          Cleanup Duplicate Users
                         </button>
                       </div>
                     </div>

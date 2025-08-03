@@ -137,6 +137,9 @@ export const ChatProvider = ({ children }) => {
             console.log(`Cleaned ${cleanedCount} stale partner connections`);
           }
         }
+        
+        // Also clean up duplicate users
+        await cleanupDuplicateUsers();
       } catch (error) {
         console.error('Error during cleanup:', error);
       }
@@ -163,6 +166,10 @@ export const ChatProvider = ({ children }) => {
       const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       
+      // Check if user already exists and update their data consistently
+      const existingUserSnapshot = await get(onlineUsersRef);
+      const existingUserData = existingUserSnapshot.val() || {};
+      
       const userOnlineData = {
         uid: userId,
         username: username,
@@ -173,7 +180,7 @@ export const ChatProvider = ({ children }) => {
         isSearching: false,
         currentPartner: null, // Prevent multiple connections
         profilePicture: userData?.profilePicture || 'default1',
-        userId: userData?.userId || Math.random().toString(36).substring(2, 8).toUpperCase()
+        userId: existingUserData.userId || userData?.userId || Math.random().toString(36).substring(2, 8).toUpperCase()
       };
       
       console.log('Adding user to online list:', userOnlineData);
@@ -349,12 +356,22 @@ export const ChatProvider = ({ children }) => {
             isSearching: false,
             currentPartner: currentUserId
           });
+          
+          // Ensure partner data is consistent by updating it with the latest information
+          const updatedPartnerData = {
+            ...partnerData,
+            isSearching: false,
+            currentPartner: currentUserId,
+            lastSeen: Date.now()
+          };
+          await set(partnerRef, updatedPartnerData);
+          
+          // Set the partner with consistent data
+          dispatch({ type: 'SET_PARTNER', payload: updatedPartnerData });
         } catch (error) {
           console.error('Error updating search status:', error);
         }
         
-        // Set the partner
-        dispatch({ type: 'SET_PARTNER', payload: partner });
         dispatch({ type: 'SET_SEARCHING', payload: false });
         toast.success(`Connected with @${partner.username}#${partner.userId}!`);
         
@@ -629,6 +646,54 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
+  const cleanupDuplicateUsers = async () => {
+    try {
+      const app = getApp();
+      const rtdb = getDatabase(app);
+      const onlineUsersRef = ref(rtdb, 'online_users');
+      
+      const snapshot = await get(onlineUsersRef);
+      if (snapshot.exists()) {
+        const users = snapshot.val();
+        const usernameMap = new Map();
+        let cleanedCount = 0;
+        
+        for (const [userId, userData] of Object.entries(users)) {
+          const username = userData.username;
+          
+          if (usernameMap.has(username)) {
+            // Found duplicate username, remove the newer one
+            const existingUserId = usernameMap.get(username);
+            const existingUser = users[existingUserId];
+            
+            if (userData.lastSeen > existingUser.lastSeen) {
+              // Remove the existing user and keep the newer one
+              await set(ref(rtdb, `online_users/${existingUserId}`), null);
+              usernameMap.set(username, userId);
+              cleanedCount++;
+              console.log(`Removed duplicate user: ${existingUserId} (kept: ${userId})`);
+            } else {
+              // Remove the current user
+              await set(ref(rtdb, `online_users/${userId}`), null);
+              cleanedCount++;
+              console.log(`Removed duplicate user: ${userId} (kept: ${existingUserId})`);
+            }
+          } else {
+            usernameMap.set(username, userId);
+          }
+        }
+        
+        if (cleanedCount > 0) {
+          console.log(`Cleaned ${cleanedCount} duplicate users`);
+          // Refresh active users after cleanup
+          await getActiveUsers();
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up duplicate users:', error);
+    }
+  };
+
   const addTestUser = async () => {
     try {
       const testUserId = `test_user_${Date.now()}`;
@@ -744,6 +809,7 @@ export const ChatProvider = ({ children }) => {
     leaveChat,
     nextPartner,
     getActiveUsers,
+    cleanupDuplicateUsers,
     addTestUser,
     addMultipleTestUsers,
     testFirebaseConnection
