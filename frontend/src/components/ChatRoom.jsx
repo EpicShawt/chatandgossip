@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Send, ArrowLeft, Users, Filter, RefreshCw, Shield } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 import { useFirebase } from '../context/FirebaseContext';
@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 
 const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const messagesEndRef = useRef(null);
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -32,16 +33,14 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
   
   const { currentUser } = useFirebase();
 
-  useEffect(() => {
-    // For demo purposes, allow access even without user
-    if (!user) {
-      console.log('No user found, but allowing demo access');
-      // Don't redirect for demo - just continue
-    }
+  // Get user from location state (for guest users) or props
+  const currentUserData = location.state?.user || user;
+  const isGuest = location.state?.isGuest || false;
 
+  useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, user, navigate]);
+  }, [messages]);
 
   useEffect(() => {
     // Start typing indicator
@@ -56,13 +55,16 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
 
   // Join chat and find partner when component mounts
   useEffect(() => {
-    if (isConnected && currentUser) {
+    if (isConnected && (currentUser || currentUserData)) {
+      const userData = currentUser || currentUserData;
+      
       // Join chat with user data
       joinChat({
-        uid: currentUser.uid,
-        username: currentUser.displayName || currentUser.email?.split('@')[0],
-        email: currentUser.email,
-        gender: 'not_disclosed'
+        uid: userData.uid || userData.id,
+        username: userData.username || userData.displayName || userData.email?.split('@')[0],
+        email: userData.email,
+        gender: userData.gender || 'not_disclosed',
+        isGuest: isGuest
       });
       
       // Get active users
@@ -75,7 +77,7 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
         }
       }, 2000);
     }
-  }, [isConnected, currentUser, joinChat, getActiveUsers, currentPartner, isSearching, findPartner]);
+  }, [isConnected, currentUser, currentUserData, joinChat, getActiveUsers, currentPartner, isSearching, findPartner, isGuest]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !currentPartner) return;
@@ -161,19 +163,36 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
               
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="relative">
-                  <div className={getProfilePicture(user?.gender)}>
-                    {user?.username?.charAt(0).toUpperCase()}
+                  <div className={getProfilePicture(currentUserData?.gender)}>
+                    {currentUserData?.username?.charAt(0).toUpperCase()}
                   </div>
                   <div className="online-indicator online"></div>
                 </div>
                 <div>
-                  <h2 className="font-semibold text-gray-800 text-sm sm:text-base">{user?.username}</h2>
-                  <p className="text-xs sm:text-sm text-gray-500">You</p>
+                  <h2 className="font-semibold text-gray-800 text-sm sm:text-base">
+                    {currentUserData?.username}
+                    {isGuest && (
+                      <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded-full">
+                        Guest
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    {isGuest ? 'Guest User' : 'You'}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center space-x-1 sm:space-x-2">
+              {/* Online Users Counter */}
+              <div className="flex items-center space-x-2 bg-orange-100 px-3 py-1 rounded-full">
+                <Users className="w-4 h-4 text-orange-600" />
+                <span className="text-sm font-medium text-orange-700">
+                  {activeUsers.length} online
+                </span>
+              </div>
+
               {currentPartner && (
                 <button
                   onClick={() => setShowGenderFilter(true)}
@@ -284,9 +303,9 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
             {messages.map((msg, index) => (
               <div
                 key={index}
-                className={`flex ${msg.from === user?.id ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${msg.from === currentUserData?.id || msg.from === currentUserData?.uid ? 'justify-end' : 'justify-start'}`}
               >
-                <div className={`chat-bubble ${msg.from === user?.id ? 'sent' : 'received'}`}>
+                <div className={`chat-bubble ${msg.from === currentUserData?.id || msg.from === currentUserData?.uid ? 'sent' : 'received'}`}>
                   <p className="text-sm">{msg.content}</p>
                   <p className="text-xs opacity-70 mt-1">
                     {new Date(msg.timestamp).toLocaleTimeString()}
