@@ -1,20 +1,20 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { io } from 'socket.io-client';
+import { useFirebase } from './FirebaseContext';
 
 const ChatContext = createContext();
 
 const initialState = {
   messages: [],
   currentPartner: null,
-  isConnected: false,
+  isConnected: true, // Firebase is always connected
   isSearching: false,
   typingUsers: [],
   chatType: 'random',
   roomInfo: null,
   participants: [],
   activeUsers: [],
-  socket: null
+  onlineUsers: []
 };
 
 const chatReducer = (state, action) => {
@@ -57,8 +57,8 @@ const chatReducer = (state, action) => {
     case 'SET_ACTIVE_USERS':
       return { ...state, activeUsers: action.payload };
     
-    case 'SET_SOCKET':
-      return { ...state, socket: action.payload };
+    case 'SET_ONLINE_USERS':
+      return { ...state, onlineUsers: action.payload };
     
     default:
       return state;
@@ -67,167 +67,142 @@ const chatReducer = (state, action) => {
 
 export const ChatProvider = ({ children }) => {
   const [state, dispatch] = useReducer(chatReducer, initialState);
-  const socketRef = useRef(null);
+  const { 
+    currentUser, 
+    sendMessage: firebaseSendMessage, 
+    listenToMessages, 
+    joinChatRoom, 
+    leaveChatRoom,
+    getOnlineUsers,
+    createUserProfile,
+    updateUserProfile
+  } = useFirebase();
+
+  const messageListenerRef = useRef(null);
+  const onlineUsersListenerRef = useRef(null);
 
   useEffect(() => {
-    // Initialize Socket.io connection for real-time chat
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || 
-                     (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://your-backend-url.com');
-    console.log('Connecting to Socket.io server:', socketUrl);
-    
-    const socket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      timeout: 10000,
-      forceNew: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
-    });
+    console.log('ChatContext: Firebase chat provider initialized');
+    dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
 
-    socketRef.current = socket;
-    dispatch({ type: 'SET_SOCKET', payload: socket });
+    // Listen to online users
+    const listenToOnlineUsers = async () => {
+      try {
+        const onlineUsers = await getOnlineUsers();
+        dispatch({ type: 'SET_ONLINE_USERS', payload: onlineUsers });
+        
+        // Set up real-time listener for online users
+        // This would be implemented with Firebase Realtime Database
+        const interval = setInterval(async () => {
+          const users = await getOnlineUsers();
+          dispatch({ type: 'SET_ONLINE_USERS', payload: users });
+        }, 5000); // Update every 5 seconds
 
-    // Connection events
-    socket.on('connect', () => {
-      console.log('Connected to server successfully');
-      dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
-      toast.success('Connected to chat server!');
-    });
-
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      dispatch({ type: 'SET_CONNECTION_STATUS', payload: false });
-      toast.error('Disconnected from chat server');
-    });
-
-    socket.on('connect_error', (error) => {
-      console.error('Connection error:', error);
-      toast.error('Failed to connect to chat server. Using demo mode.');
-      
-      // Fallback to demo mode if connection fails
-      setTimeout(() => {
-        const demoPartner = {
-          id: 'demo-partner-123',
-          username: 'Sarah',
-          gender: 'female',
-          isTestUser: true,
-          isOnline: true
-        };
-        dispatch({ type: 'SET_PARTNER', payload: demoPartner });
-        toast.success('Connected with demo partner (Sarah)!');
-      }, 2000);
-    });
-
-    // User events
-    socket.on('user_joined', (user) => {
-      console.log('User joined:', user);
-    });
-
-    socket.on('user_online', (user) => {
-      console.log('User online:', user);
-      // Update active users list
-      socket.emit('get_active_users');
-    });
-
-    socket.on('user_offline', (user) => {
-      console.log('User offline:', user);
-      // Update active users list
-      socket.emit('get_active_users');
-    });
-
-    socket.on('active_users', (users) => {
-      console.log('Active users received:', users);
-      dispatch({ type: 'SET_ACTIVE_USERS', payload: users });
-    });
-
-    // Partner matching events
-    socket.on('partner_found', (partner) => {
-      console.log('Partner found:', partner);
-      dispatch({ type: 'SET_PARTNER', payload: partner });
-      toast.success(`Connected with ${partner.username}!`);
-    });
-
-    socket.on('searching', (data) => {
-      console.log('Searching for partner:', data);
-      dispatch({ type: 'SET_SEARCHING', payload: true });
-      toast.loading('Searching for partner...');
-    });
-
-    socket.on('partner_left', () => {
-      console.log('Partner left');
-      dispatch({ type: 'CLEAR_CHAT' });
-      toast.error('Partner disconnected');
-    });
-
-    // Message events
-    socket.on('message_received', (message) => {
-      console.log('Message received:', message);
-      dispatch({ type: 'ADD_MESSAGE', payload: message });
-    });
-
-    socket.on('message_sent', (message) => {
-      console.log('Message sent:', message);
-      dispatch({ type: 'ADD_MESSAGE', payload: message });
-    });
-
-    // Typing events
-    socket.on('partner_typing', (data) => {
-      console.log('Partner typing:', data);
-      dispatch({ type: 'SET_TYPING_USERS', payload: [data.from] });
-    });
-
-    socket.on('partner_stopped_typing', (data) => {
-      console.log('Partner stopped typing:', data);
-      dispatch({ type: 'SET_TYPING_USERS', payload: [] });
-    });
-
-    // Error handling
-    socket.on('error', (error) => {
-      console.error('Socket error:', error);
-      toast.error(error.message || 'Connection error');
-    });
-
-    return () => {
-      socket.disconnect();
+        return () => clearInterval(interval);
+      } catch (error) {
+        console.error('Error listening to online users:', error);
+      }
     };
-  }, []);
 
-  const joinChat = (userData) => {
-    if (!socketRef.current) return;
+    listenToOnlineUsers();
+  }, [getOnlineUsers]);
+
+  const joinChat = async (userData) => {
+    if (!currentUser) return;
     
-    console.log('Joining chat with user data:', userData);
-    socketRef.current.emit('user_join', userData);
+    try {
+      console.log('Joining chat with user data:', userData);
+      
+      // Update user profile to show as online
+      await updateUserProfile(currentUser.uid, {
+        isOnline: true,
+        lastSeen: new Date().toISOString(),
+        ...userData
+      });
+
+      // Get online users for matching
+      const onlineUsers = await getOnlineUsers();
+      dispatch({ type: 'SET_ONLINE_USERS', payload: onlineUsers });
+      
+      toast.success('Joined chat successfully!');
+    } catch (error) {
+      console.error('Error joining chat:', error);
+      toast.error('Failed to join chat');
+    }
   };
 
-  const findPartner = (options = {}) => {
-    if (!socketRef.current || !state.isConnected) {
-      console.log('Not connected to server, using demo mode');
-      dispatch({ type: 'SET_SEARCHING', payload: true });
-      toast.loading('Searching for partner...');
-      
-      // Demo mode - simulate finding a partner
-      setTimeout(() => {
-        const demoPartner = {
-          id: 'demo-partner-123',
-          username: 'Sarah',
-          gender: 'female',
-          isTestUser: true,
-          isOnline: true
-        };
-        dispatch({ type: 'SET_PARTNER', payload: demoPartner });
-        dispatch({ type: 'SET_SEARCHING', payload: false });
-        toast.success('Connected with demo partner (Sarah)!');
-      }, 2000);
+  const findPartner = async (options = {}) => {
+    if (!currentUser) {
+      toast.error('Please login first');
       return;
     }
 
     console.log('Finding partner with options:', options);
     dispatch({ type: 'SET_SEARCHING', payload: true });
     toast.loading('Searching for partner...');
-    
-    socketRef.current.emit('find_partner', {
-      genderFilter: options.genderFilter || null
-    });
+
+    try {
+      // Get online users
+      const onlineUsers = await getOnlineUsers();
+      const availableUsers = onlineUsers.filter(user => 
+        user.uid !== currentUser.uid && 
+        user.isOnline &&
+        (!options.genderFilter || user.gender === options.genderFilter || user.gender === 'not_disclosed')
+      );
+
+      if (availableUsers.length > 0) {
+        // Find a random partner
+        const randomIndex = Math.floor(Math.random() * availableUsers.length);
+        const partner = availableUsers[randomIndex];
+        
+        dispatch({ type: 'SET_PARTNER', payload: partner });
+        toast.success(`Connected with ${partner.username || partner.displayName}!`);
+        
+        // Create or join chat room
+        const roomId = `chat_${currentUser.uid}_${partner.uid}`;
+        await joinChatRoom(roomId, currentUser);
+        
+        // Listen to messages in this room
+        if (messageListenerRef.current) {
+          messageListenerRef.current();
+        }
+        
+        messageListenerRef.current = listenToMessages(roomId, (messages) => {
+          dispatch({ type: 'SET_MESSAGES', payload: messages });
+        });
+        
+      } else {
+        // No real users available, use demo partner
+        const demoPartner = {
+          uid: 'demo-partner-123',
+          username: 'Sarah',
+          displayName: 'Sarah',
+          gender: 'female',
+          isTestUser: true,
+          isOnline: true
+        };
+        
+        dispatch({ type: 'SET_PARTNER', payload: demoPartner });
+        dispatch({ type: 'SET_SEARCHING', payload: false });
+        toast.success('Connected with demo partner (Sarah)!');
+      }
+    } catch (error) {
+      console.error('Error finding partner:', error);
+      
+      // Fallback to demo partner
+      const demoPartner = {
+        uid: 'demo-partner-123',
+        username: 'Sarah',
+        displayName: 'Sarah',
+        gender: 'female',
+        isTestUser: true,
+        isOnline: true
+      };
+      
+      dispatch({ type: 'SET_PARTNER', payload: demoPartner });
+      dispatch({ type: 'SET_SEARCHING', payload: false });
+      toast.success('Connected with demo partner (Sarah)!');
+    }
   };
 
   const sendMessage = async (messageData) => {
@@ -236,81 +211,94 @@ export const ChatProvider = ({ children }) => {
       return;
     }
 
-    if (!socketRef.current || !state.isConnected) {
-      console.log('Not connected to server, using demo mode');
-      
-      // Demo mode - simulate sending and receiving message
-      const demoMessage = {
-        id: Date.now().toString(),
-        from: 'demo-partner-123',
-        to: 'user',
-        content: messageData.content,
-        timestamp: new Date().toISOString(),
-        type: 'text'
-      };
-      dispatch({ type: 'ADD_MESSAGE', payload: demoMessage });
-      
-      // Simulate partner response
-      setTimeout(() => {
-        const responses = [
-          "That's interesting! Tell me more about that.",
-          "I love chatting with new people! What do you like to do for fun?",
-          "That's cool! I'm Sarah, nice to meet you! 👋",
-          "What's your favorite music? I'm really into indie these days!",
-          "Do you like traveling? I've been to some amazing places!",
-          "That's awesome! I'm always up for a good conversation.",
-          "What's your dream job? I'm curious about different career paths!",
-          "I love trying new foods! What's your favorite cuisine?",
-          "That's so interesting! I love learning about different perspectives.",
-          "Hey! How's your day going? 😊"
-        ];
-        
-        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-        const partnerMessage = {
-          id: (Date.now() + 1).toString(),
-          from: 'demo-partner-123',
-          to: 'user',
-          content: randomResponse,
-          timestamp: new Date().toISOString(),
-          type: 'text'
-        };
-        dispatch({ type: 'ADD_MESSAGE', payload: partnerMessage });
-      }, 1000 + Math.random() * 2000);
-      
+    if (!currentUser) {
+      toast.error('Please login first');
       return;
     }
 
-    console.log('Sending message:', messageData);
-    
-    socketRef.current.emit('private_message', {
-      to: state.currentPartner.id,
-      content: messageData.content
-    });
+    try {
+      console.log('Sending message:', messageData);
+      
+      if (state.currentPartner.isTestUser) {
+        // Demo mode - simulate sending and receiving message
+        const demoMessage = {
+          id: Date.now().toString(),
+          from: currentUser.uid,
+          to: 'demo-partner-123',
+          content: messageData.content,
+          timestamp: new Date().toISOString(),
+          type: 'text'
+        };
+        dispatch({ type: 'ADD_MESSAGE', payload: demoMessage });
+        
+        // Simulate partner response
+        setTimeout(() => {
+          const responses = [
+            "That's interesting! Tell me more about that.",
+            "I love chatting with new people! What do you like to do for fun?",
+            "That's cool! I'm Sarah, nice to meet you! 👋",
+            "What's your favorite music? I'm really into indie these days!",
+            "Do you like traveling? I've been to some amazing places!",
+            "That's awesome! I'm always up for a good conversation.",
+            "What's your dream job? I'm curious about different career paths!",
+            "I love trying new foods! What's your favorite cuisine?",
+            "That's so interesting! I love learning about different perspectives.",
+            "Hey! How's your day going? 😊"
+          ];
+          
+          const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+          const partnerMessage = {
+            id: (Date.now() + 1).toString(),
+            from: 'demo-partner-123',
+            to: currentUser.uid,
+            content: randomResponse,
+            timestamp: new Date().toISOString(),
+            type: 'text'
+          };
+          dispatch({ type: 'ADD_MESSAGE', payload: partnerMessage });
+        }, 1000 + Math.random() * 2000);
+        
+      } else {
+        // Real user - send via Firebase
+        const roomId = `chat_${currentUser.uid}_${state.currentPartner.uid}`;
+        await firebaseSendMessage(roomId, {
+          ...messageData,
+          from: currentUser.uid,
+          to: state.currentPartner.uid,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      toast.success('Message sent!');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    }
   };
 
   const startTyping = (partnerId) => {
-    if (!socketRef.current || !state.currentPartner) return;
-    
     console.log('Starting typing to partner:', partnerId);
-    socketRef.current.emit('typing', {
-      to: state.currentPartner.id
-    });
+    // Firebase typing implementation would go here
   };
 
   const stopTyping = () => {
-    if (!socketRef.current || !state.currentPartner) return;
-    
     console.log('Stopping typing');
-    socketRef.current.emit('stop_typing', {
-      to: state.currentPartner.id
-    });
+    // Firebase typing implementation would go here
   };
 
-  const leaveChat = () => {
-    if (!socketRef.current) return;
-    
+  const leaveChat = async () => {
     console.log('Leaving chat');
-    socketRef.current.emit('leave_chat');
+    
+    if (messageListenerRef.current) {
+      messageListenerRef.current();
+      messageListenerRef.current = null;
+    }
+    
+    if (state.currentPartner && !state.currentPartner.isTestUser) {
+      const roomId = `chat_${currentUser?.uid}_${state.currentPartner.uid}`;
+      await leaveChatRoom(roomId, currentUser?.uid);
+    }
+    
     dispatch({ type: 'CLEAR_CHAT' });
   };
 
@@ -322,35 +310,47 @@ export const ChatProvider = ({ children }) => {
     }, 1000);
   };
 
-  const getActiveUsers = () => {
-    if (!socketRef.current) return;
-    
-    socketRef.current.emit('get_active_users');
+  const getActiveUsers = async () => {
+    try {
+      const onlineUsers = await getOnlineUsers();
+      dispatch({ type: 'SET_ACTIVE_USERS', payload: onlineUsers });
+    } catch (error) {
+      console.error('Error getting active users:', error);
+    }
   };
 
   const joinRoom = async (roomId) => {
-    if (!socketRef.current) return;
-    
     console.log('Joining room:', roomId);
-    socketRef.current.emit('join_room', { roomId });
+    try {
+      await joinChatRoom(roomId, currentUser);
+      dispatch({ type: 'SET_ROOM_INFO', payload: { roomId, roomName: `Room ${roomId}` } });
+      toast.success(`Joined room: Room ${roomId}`);
+    } catch (error) {
+      console.error('Error joining room:', error);
+      toast.error('Failed to join room');
+    }
   };
 
   const leaveRoom = (roomId) => {
-    if (!socketRef.current) return;
-    
     console.log('Leaving room:', roomId);
-    socketRef.current.emit('leave_room', { roomId });
+    leaveChatRoom(roomId, currentUser?.uid);
     dispatch({ type: 'SET_ROOM_INFO', payload: null });
   };
 
   const sendRoomMessage = async (content, roomId) => {
-    if (!socketRef.current) return;
-    
     console.log('Sending room message:', content);
-    socketRef.current.emit('room_message', {
-      roomId,
-      content
-    });
+    try {
+      const messageData = {
+        content,
+        sender: currentUser?.uid || 'anonymous',
+        timestamp: new Date().toISOString()
+      };
+      await firebaseSendMessage(roomId, messageData);
+      toast.success('Message sent successfully!');
+    } catch (error) {
+      console.warn('Message sending error:', error.message);
+      toast.error('Failed to send message');
+    }
   };
 
   const value = {

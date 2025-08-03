@@ -46,7 +46,7 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
   useEffect(() => {
     // Start typing indicator
     if (message && currentPartner) {
-      startTyping(currentPartner.id);
+      startTyping(currentPartner.uid || currentPartner.id);
       setIsTyping(true);
     } else {
       stopTyping();
@@ -56,13 +56,13 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
 
   // Join chat and find partner when component mounts
   useEffect(() => {
-    if (isConnected && user) {
+    if (isConnected && currentUser) {
       // Join chat with user data
       joinChat({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        gender: user.gender || 'not_disclosed'
+        uid: currentUser.uid,
+        username: currentUser.displayName || currentUser.email?.split('@')[0],
+        email: currentUser.email,
+        gender: 'not_disclosed'
       });
       
       // Get active users
@@ -75,13 +75,13 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
         }
       }, 2000);
     }
-  }, [isConnected, user, joinChat, getActiveUsers, currentPartner, isSearching, findPartner]);
+  }, [isConnected, currentUser, joinChat, getActiveUsers, currentPartner, isSearching, findPartner]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !currentPartner) return;
 
     sendMessage({
-      to: currentPartner.id,
+      to: currentPartner.uid || currentPartner.id,
       content: message.trim()
     });
     setMessage('');
