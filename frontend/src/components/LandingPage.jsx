@@ -71,6 +71,64 @@ const LandingPage = ({
     addMultipleTestUsers();
   };
 
+  const testFirebaseConnection = async () => {
+    try {
+      const { set, ref, get } = await import('firebase/database');
+      const { getDatabase } = await import('firebase/app');
+      
+      const rtdb = getDatabase();
+      const testRef = ref(rtdb, 'test_connection');
+      
+      // Test write
+      await set(testRef, { timestamp: Date.now(), test: true });
+      console.log('✅ Firebase write test successful');
+      
+      // Test read
+      const snapshot = await get(testRef);
+      console.log('✅ Firebase read test successful:', snapshot.val());
+      
+      // Clean up
+      await set(testRef, null);
+      console.log('✅ Firebase cleanup successful');
+      
+      toast.success('Firebase connection working!');
+    } catch (error) {
+      console.error('❌ Firebase connection failed:', error);
+      toast.error('Firebase connection failed: ' + error.message);
+    }
+  };
+
+  const checkOnlineUsers = async () => {
+    try {
+      const { ref, get } = await import('firebase/database');
+      const { getDatabase } = await import('firebase/app');
+      
+      const rtdb = getDatabase();
+      const onlineUsersRef = ref(rtdb, 'online_users');
+      
+      const snapshot = await get(onlineUsersRef);
+      console.log('📊 Current online users in Firebase:', snapshot.val());
+      
+      if (snapshot.exists()) {
+        const users = [];
+        snapshot.forEach((childSnapshot) => {
+          users.push({
+            uid: childSnapshot.key,
+            ...childSnapshot.val()
+          });
+        });
+        console.log('👥 Processed online users:', users);
+        toast.success(`Found ${users.length} online users in Firebase`);
+      } else {
+        console.log('📭 No online users found in Firebase');
+        toast.info('No online users found in Firebase');
+      }
+    } catch (error) {
+      console.error('❌ Error checking online users:', error);
+      toast.error('Error checking online users: ' + error.message);
+    }
+  };
+
   const handleAuthenticatedChat = () => {
     if (isAuthenticated && user) {
       navigate('/chat');
@@ -115,6 +173,22 @@ const LandingPage = ({
                 className="btn-outline text-xs sm:text-sm bg-blue-100 text-blue-700 hover:bg-blue-200"
               >
                 Add 5 Test Users
+              </button>
+
+              {/* Firebase Connection Test Button */}
+              <button
+                onClick={testFirebaseConnection}
+                className="btn-outline text-xs sm:text-sm bg-purple-100 text-purple-700 hover:bg-purple-200"
+              >
+                Test Firebase
+              </button>
+
+              {/* Check Online Users Button */}
+              <button
+                onClick={checkOnlineUsers}
+                className="btn-outline text-xs sm:text-sm bg-green-100 text-green-700 hover:bg-green-200"
+              >
+                Check Online Users
               </button>
 
               {isAuthenticated ? (
