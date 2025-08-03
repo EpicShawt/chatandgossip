@@ -70,7 +70,7 @@ export const ChatProvider = ({ children }) => {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // Initialize Socket.io connection
+    // Initialize Socket.io connection for real-time chat
     const socket = io('http://localhost:5000', {
       transports: ['websocket', 'polling']
     });
