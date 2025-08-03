@@ -364,11 +364,7 @@ export const FirebaseProvider = ({ children }) => {
     createUserProfile,
     getUserProfile,
     updateUserProfile,
-    getOnlineUsers,
-    sendMessage,
-    listenToMessages,
-    joinChatRoom,
-    leaveChatRoom
+    getOnlineUsers
   };
 
   return (

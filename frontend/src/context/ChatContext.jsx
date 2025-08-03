@@ -1,6 +1,16 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useFirebase } from './FirebaseContext';
+import { 
+  getDatabase, 
+  ref, 
+  set, 
+  get, 
+  push, 
+  onValue, 
+  off 
+} from 'firebase/database';
+import { getApp } from 'firebase/app';
 
 const ChatContext = createContext();
 
@@ -101,12 +111,9 @@ export const ChatProvider = ({ children }) => {
       console.log('User ID for online tracking:', userId);
       console.log('Username for online tracking:', username);
       
-      // Add user to online users in Firebase Realtime Database
-      const { set, ref, getDatabase } = await import('firebase/database');
-      const { getApp } = await import('firebase/app');
-      
-      const app = getApp();
-      const rtdb = getDatabase(app);
+             // Add user to online users in Firebase Realtime Database
+       const app = getApp();
+       const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       
              const userOnlineData = {
@@ -162,14 +169,11 @@ export const ChatProvider = ({ children }) => {
     dispatch({ type: 'SET_SEARCHING', payload: true });
     toast.loading('Searching for partner...');
 
-    // Mark current user as searching
-    const currentUserId = currentUser?.uid || 'guest';
-    try {
-      const { set, ref, getDatabase } = await import('firebase/database');
-      const { getApp } = await import('firebase/app');
-      
-      const app = getApp();
-      const rtdb = getDatabase(app);
+         // Mark current user as searching
+     const currentUserId = currentUser?.uid || 'guest';
+     try {
+       const app = getApp();
+       const rtdb = getDatabase(app);
       const userRef = ref(rtdb, `online_users/${currentUserId}`);
       
       // Get current user data first
@@ -189,13 +193,10 @@ export const ChatProvider = ({ children }) => {
     const searchTimeout = setTimeout(async () => {
       console.log('30 seconds passed, no real partners found');
       
-      // Mark user as no longer searching
-      try {
-        const { set, ref, getDatabase } = await import('firebase/database');
-        const { getApp } = await import('firebase/app');
-        
-        const app = getApp();
-        const rtdb = getDatabase(app);
+               // Mark user as no longer searching
+         try {
+           const app = getApp();
+           const rtdb = getDatabase(app);
         const userRef = ref(rtdb, `online_users/${currentUserId}`);
         
                  const userSnapshot = await get(userRef);
@@ -255,9 +256,6 @@ export const ChatProvider = ({ children }) => {
         
                  // Create chat room in Realtime Database instead of Firestore
          try {
-           const { set, ref, getDatabase } = await import('firebase/database');
-           const { getApp } = await import('firebase/app');
-           
            const app = getApp();
            const rtdb = getDatabase(app);
            const chatRoomRef = ref(rtdb, `chat_rooms/${roomId}`);
@@ -274,9 +272,6 @@ export const ChatProvider = ({ children }) => {
         
                  // Mark both users as no longer searching
          try {
-           const { set, ref, getDatabase } = await import('firebase/database');
-           const { getApp } = await import('firebase/app');
-           
            const app = getApp();
            const rtdb = getDatabase(app);
            
@@ -312,9 +307,6 @@ export const ChatProvider = ({ children }) => {
          }
          
          try {
-           const { ref, onValue, off, getDatabase } = await import('firebase/database');
-           const { getApp } = await import('firebase/app');
-           
            const app = getApp();
            const rtdb = getDatabase(app);
            const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
@@ -348,9 +340,6 @@ export const ChatProvider = ({ children }) => {
        
        // Mark user as no longer searching
        try {
-         const { set, ref, getDatabase } = await import('firebase/database');
-         const { getApp } = await import('firebase/app');
-         
          const app = getApp();
          const rtdb = getDatabase(app);
          const userRef = ref(rtdb, `online_users/${currentUserId}`);
@@ -379,16 +368,13 @@ export const ChatProvider = ({ children }) => {
 
     console.log('Sending message:', messageData);
     
-              try {
-       // Real user - send via Realtime Database
-       const currentUserId = currentUser?.uid || 'guest';
-       const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
-       
-       const { push, ref, getDatabase } = await import('firebase/database');
-       const { getApp } = await import('firebase/app');
-       
-       const app = getApp();
-       const rtdb = getDatabase(app);
+                     try {
+         // Real user - send via Realtime Database
+         const currentUserId = currentUser?.uid || 'guest';
+         const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
+         
+         const app = getApp();
+         const rtdb = getDatabase(app);
        const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
        
        await push(messagesRef, {
@@ -423,14 +409,11 @@ export const ChatProvider = ({ children }) => {
       messageListenerRef.current = null;
     }
     
-    // Remove user from online users
-    try {
-      const userId = currentUser?.uid || 'guest';
-      const { set, ref, getDatabase } = await import('firebase/database');
-      const { getApp } = await import('firebase/app');
-      
-      const app = getApp();
-      const rtdb = getDatabase(app);
+         // Remove user from online users
+     try {
+       const userId = currentUser?.uid || 'guest';
+       const app = getApp();
+       const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       await set(onlineUsersRef, null);
       
@@ -444,9 +427,6 @@ export const ChatProvider = ({ children }) => {
        const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
        
        try {
-         const { set, ref, getDatabase } = await import('firebase/database');
-         const { getApp } = await import('firebase/app');
-         
          const app = getApp();
          const rtdb = getDatabase(app);
          const chatRoomRef = ref(rtdb, `chat_rooms/${roomId}`);
@@ -495,14 +475,11 @@ export const ChatProvider = ({ children }) => {
 
   
 
-  const addTestUser = async () => {
-    try {
-      const testUserId = `test_user_${Date.now()}`;
-      const { set, ref, getDatabase } = await import('firebase/database');
-      const { getApp } = await import('firebase/app');
-      
-      const app = getApp();
-      const rtdb = getDatabase(app);
+     const addTestUser = async () => {
+     try {
+       const testUserId = `test_user_${Date.now()}`;
+       const app = getApp();
+       const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${testUserId}`);
       
       await set(onlineUsersRef, {
@@ -521,21 +498,18 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const addMultipleTestUsers = async () => {
-    try {
-      const testUsers = [
-        { username: 'John', gender: 'male' },
-        { username: 'Emma', gender: 'female' },
-        { username: 'Alex', gender: 'not_disclosed' },
-        { username: 'Sarah', gender: 'female' },
-        { username: 'Mike', gender: 'male' }
-      ];
-      
-      const { set, ref, getDatabase } = await import('firebase/database');
-      const { getApp } = await import('firebase/app');
-      
-      const app = getApp();
-      const rtdb = getDatabase(app);
+     const addMultipleTestUsers = async () => {
+     try {
+       const testUsers = [
+         { username: 'John', gender: 'male' },
+         { username: 'Emma', gender: 'female' },
+         { username: 'Alex', gender: 'not_disclosed' },
+         { username: 'Sarah', gender: 'female' },
+         { username: 'Mike', gender: 'male' }
+       ];
+       
+       const app = getApp();
+       const rtdb = getDatabase(app);
       
       for (let i = 0; i < testUsers.length; i++) {
         const testUserId = `test_user_${Date.now()}_${i}`;
@@ -563,13 +537,10 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const testFirebaseConnection = async () => {
-    try {
-      const { set, ref, getDatabase } = await import('firebase/database');
-      const { getApp } = await import('firebase/app');
-      
-      const app = getApp();
-      const rtdb = getDatabase(app);
+     const testFirebaseConnection = async () => {
+     try {
+       const app = getApp();
+       const rtdb = getDatabase(app);
       const testRef = ref(rtdb, 'test_connection');
       
       await set(testRef, { timestamp: Date.now() });
