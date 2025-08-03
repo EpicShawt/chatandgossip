@@ -43,8 +43,12 @@ function AppContent() {
       });
       setIsAuthenticated(true);
     } else {
-      setUser(null);
-      setIsAuthenticated(false);
+      // Don't clear user state if it's a guest user
+      // Only clear if there's no currentUser and no guest user
+      if (!user || !user.isGuest) {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
     }
 
     // Fetch online users initially
@@ -60,14 +64,26 @@ function AppContent() {
 
   const handleLogin = (userData) => {
     console.log('Logging in user:', userData);
-    // User state will be updated by Firebase auth listener
+    
+    // Set user state for both Firebase and guest users
+    setUser({
+      id: userData.id || userData.uid,
+      username: userData.username || userData.displayName,
+      email: userData.email,
+      isGuest: userData.isGuest || false
+    });
+    setIsAuthenticated(true);
   };
 
   const handleLogout = async () => {
     console.log('Logging out user');
     try {
-      await firebaseLogout();
-      // User state will be cleared by Firebase auth listener
+      if (user && !user.isGuest) {
+        await firebaseLogout();
+      }
+      // Clear user state
+      setUser(null);
+      setIsAuthenticated(false);
     } catch (error) {
       console.error('Logout error:', error);
       // Fallback: clear user state manually

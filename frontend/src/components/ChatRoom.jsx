@@ -76,6 +76,9 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
           findPartner();
         }
       }, 2000);
+    } else if (isConnected) {
+      // If no user but connected, still try to get active users
+      getActiveUsers();
     }
   }, [isConnected, currentUser, currentUserData, joinChat, getActiveUsers, currentPartner, isSearching, findPartner, isGuest]);
 

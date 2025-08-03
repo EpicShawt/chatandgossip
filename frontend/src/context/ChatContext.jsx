@@ -132,8 +132,29 @@ export const ChatProvider = ({ children }) => {
   };
 
   const findPartner = async (options = {}) => {
-    if (!currentUser) {
-      toast.error('Please login first');
+    // Check if we have any user (Firebase or guest)
+    const hasUser = currentUser || state.currentPartner?.isGuest;
+    
+    if (!hasUser) {
+      console.log('No user available, using demo mode');
+      dispatch({ type: 'SET_SEARCHING', payload: true });
+      toast.loading('Searching for partner...');
+      
+      // Demo mode - simulate finding a partner
+      setTimeout(() => {
+        const demoPartner = {
+          uid: 'demo-partner-123',
+          username: 'Sarah',
+          displayName: 'Sarah',
+          gender: 'female',
+          isTestUser: true,
+          isOnline: true
+        };
+        
+        dispatch({ type: 'SET_PARTNER', payload: demoPartner });
+        dispatch({ type: 'SET_SEARCHING', payload: false });
+        toast.success('Connected with demo partner (Sarah)!');
+      }, 2000);
       return;
     }
 
@@ -145,7 +166,7 @@ export const ChatProvider = ({ children }) => {
       // Get online users
       const onlineUsers = await getOnlineUsers();
       const availableUsers = onlineUsers.filter(user => 
-        user.uid !== currentUser.uid && 
+        user.uid !== (currentUser?.uid || 'guest') && 
         user.isOnline &&
         (!options.genderFilter || user.gender === options.genderFilter || user.gender === 'not_disclosed')
       );
@@ -159,8 +180,8 @@ export const ChatProvider = ({ children }) => {
         toast.success(`Connected with ${partner.username || partner.displayName}!`);
         
         // Create or join chat room
-        const roomId = `chat_${currentUser.uid}_${partner.uid}`;
-        await joinChatRoom(roomId, currentUser);
+        const roomId = `chat_${currentUser?.uid || 'guest'}_${partner.uid}`;
+        await joinChatRoom(roomId, currentUser || { uid: 'guest' });
         
         // Listen to messages in this room
         if (messageListenerRef.current) {
@@ -211,8 +232,50 @@ export const ChatProvider = ({ children }) => {
       return;
     }
 
-    if (!currentUser) {
-      toast.error('Please login first');
+    // Check if we have any user (Firebase or guest)
+    const hasUser = currentUser || state.currentPartner?.isGuest;
+    
+    if (!hasUser) {
+      console.log('No user available, using demo mode');
+      
+      // Demo mode - simulate sending and receiving message
+      const demoMessage = {
+        id: Date.now().toString(),
+        from: 'guest',
+        to: 'demo-partner-123',
+        content: messageData.content,
+        timestamp: new Date().toISOString(),
+        type: 'text'
+      };
+      dispatch({ type: 'ADD_MESSAGE', payload: demoMessage });
+      
+      // Simulate partner response
+      setTimeout(() => {
+        const responses = [
+          "That's interesting! Tell me more about that.",
+          "I love chatting with new people! What do you like to do for fun?",
+          "That's cool! I'm Sarah, nice to meet you! 👋",
+          "What's your favorite music? I'm really into indie these days!",
+          "Do you like traveling? I've been to some amazing places!",
+          "That's awesome! I'm always up for a good conversation.",
+          "What's your dream job? I'm curious about different career paths!",
+          "I love trying new foods! What's your favorite cuisine?",
+          "That's so interesting! I love learning about different perspectives.",
+          "Hey! How's your day going? 😊"
+        ];
+        
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+        const partnerMessage = {
+          id: (Date.now() + 1).toString(),
+          from: 'demo-partner-123',
+          to: 'guest',
+          content: randomResponse,
+          timestamp: new Date().toISOString(),
+          type: 'text'
+        };
+        dispatch({ type: 'ADD_MESSAGE', payload: partnerMessage });
+      }, 1000 + Math.random() * 2000);
+      
       return;
     }
 
@@ -223,7 +286,7 @@ export const ChatProvider = ({ children }) => {
         // Demo mode - simulate sending and receiving message
         const demoMessage = {
           id: Date.now().toString(),
-          from: currentUser.uid,
+          from: currentUser?.uid || 'guest',
           to: 'demo-partner-123',
           content: messageData.content,
           timestamp: new Date().toISOString(),
@@ -250,7 +313,7 @@ export const ChatProvider = ({ children }) => {
           const partnerMessage = {
             id: (Date.now() + 1).toString(),
             from: 'demo-partner-123',
-            to: currentUser.uid,
+            to: currentUser?.uid || 'guest',
             content: randomResponse,
             timestamp: new Date().toISOString(),
             type: 'text'
@@ -260,10 +323,10 @@ export const ChatProvider = ({ children }) => {
         
       } else {
         // Real user - send via Firebase
-        const roomId = `chat_${currentUser.uid}_${state.currentPartner.uid}`;
+        const roomId = `chat_${currentUser?.uid || 'guest'}_${state.currentPartner.uid}`;
         await firebaseSendMessage(roomId, {
           ...messageData,
-          from: currentUser.uid,
+          from: currentUser?.uid || 'guest',
           to: state.currentPartner.uid,
           timestamp: new Date().toISOString()
         });
