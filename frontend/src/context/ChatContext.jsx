@@ -84,28 +84,7 @@ export const ChatProvider = ({ children }) => {
   useEffect(() => {
     console.log('ChatContext: Firebase chat provider initialized');
     dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
-
-    // Listen to online users
-    const listenToOnlineUsers = async () => {
-      try {
-        const onlineUsers = await getOnlineUsers();
-        dispatch({ type: 'SET_ONLINE_USERS', payload: onlineUsers });
-        
-        // Set up real-time listener for online users
-        // This would be implemented with Firebase Realtime Database
-        const interval = setInterval(async () => {
-          const users = await getOnlineUsers();
-          dispatch({ type: 'SET_ONLINE_USERS', payload: users });
-        }, 5000); // Update every 5 seconds
-
-        return () => clearInterval(interval);
-      } catch (error) {
-        console.error('Error listening to online users:', error);
-      }
-    };
-
-    listenToOnlineUsers();
-  }, [getOnlineUsers]);
+  }, []);
 
   const joinChat = async (userData) => {
     if (!currentUser) return;

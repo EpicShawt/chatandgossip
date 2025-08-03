@@ -65,13 +65,6 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     return () => clearTimeout(timer);
   }, [currentPartner, isSearching, findPartner]);
 
-  // Get active users periodically
-  useEffect(() => {
-    getActiveUsers();
-    const interval = setInterval(getActiveUsers, 5000);
-    return () => clearInterval(interval);
-  }, [getActiveUsers]);
-
   const handleSendMessage = () => {
     if (!message.trim() || !currentPartner) return;
 

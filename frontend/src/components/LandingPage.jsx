@@ -24,14 +24,7 @@ const LandingPage = ({
   useEffect(() => {
     // Update online count
     setOnlineCount(onlineUsers.length);
-    
-    // Get active users periodically
-    const interval = setInterval(() => {
-      getActiveUsers();
-    }, 5000);
-    
-    return () => clearInterval(interval);
-  }, [onlineUsers, getActiveUsers]);
+  }, [onlineUsers]);
 
   const handleGuestChat = async () => {
     if (!guestUsername.trim()) {

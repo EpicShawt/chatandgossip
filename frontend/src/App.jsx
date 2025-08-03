@@ -53,13 +53,6 @@ function AppContent() {
 
     // Fetch online users initially
     fetchOnlineUsers();
-    
-    // Set up periodic refresh of online users
-    const interval = setInterval(fetchOnlineUsers, 10000); // Refresh every 10 seconds
-    
-    return () => {
-      clearInterval(interval);
-    };
   }, [currentUser]);
 
   const handleLogin = (userData) => {
