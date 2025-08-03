@@ -71,13 +71,17 @@ export const ChatProvider = ({ children }) => {
 
   useEffect(() => {
     // Initialize Socket.io connection for real-time chat
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || 
+                     (window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://your-backend-url.com');
     console.log('Connecting to Socket.io server:', socketUrl);
     
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       timeout: 10000,
-      forceNew: true
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
     });
 
     socketRef.current = socket;
@@ -98,7 +102,20 @@ export const ChatProvider = ({ children }) => {
 
     socket.on('connect_error', (error) => {
       console.error('Connection error:', error);
-      toast.error('Failed to connect to chat server');
+      toast.error('Failed to connect to chat server. Using demo mode.');
+      
+      // Fallback to demo mode if connection fails
+      setTimeout(() => {
+        const demoPartner = {
+          id: 'demo-partner-123',
+          username: 'Sarah',
+          gender: 'female',
+          isTestUser: true,
+          isOnline: true
+        };
+        dispatch({ type: 'SET_PARTNER', payload: demoPartner });
+        toast.success('Connected with demo partner (Sarah)!');
+      }, 2000);
     });
 
     // User events
@@ -183,8 +200,24 @@ export const ChatProvider = ({ children }) => {
   };
 
   const findPartner = (options = {}) => {
-    if (!socketRef.current) {
-      toast.error('Not connected to server');
+    if (!socketRef.current || !state.isConnected) {
+      console.log('Not connected to server, using demo mode');
+      dispatch({ type: 'SET_SEARCHING', payload: true });
+      toast.loading('Searching for partner...');
+      
+      // Demo mode - simulate finding a partner
+      setTimeout(() => {
+        const demoPartner = {
+          id: 'demo-partner-123',
+          username: 'Sarah',
+          gender: 'female',
+          isTestUser: true,
+          isOnline: true
+        };
+        dispatch({ type: 'SET_PARTNER', payload: demoPartner });
+        dispatch({ type: 'SET_SEARCHING', payload: false });
+        toast.success('Connected with demo partner (Sarah)!');
+      }, 2000);
       return;
     }
 
@@ -203,8 +236,47 @@ export const ChatProvider = ({ children }) => {
       return;
     }
 
-    if (!socketRef.current) {
-      toast.error('Not connected to server');
+    if (!socketRef.current || !state.isConnected) {
+      console.log('Not connected to server, using demo mode');
+      
+      // Demo mode - simulate sending and receiving message
+      const demoMessage = {
+        id: Date.now().toString(),
+        from: 'demo-partner-123',
+        to: 'user',
+        content: messageData.content,
+        timestamp: new Date().toISOString(),
+        type: 'text'
+      };
+      dispatch({ type: 'ADD_MESSAGE', payload: demoMessage });
+      
+      // Simulate partner response
+      setTimeout(() => {
+        const responses = [
+          "That's interesting! Tell me more about that.",
+          "I love chatting with new people! What do you like to do for fun?",
+          "That's cool! I'm Sarah, nice to meet you! 👋",
+          "What's your favorite music? I'm really into indie these days!",
+          "Do you like traveling? I've been to some amazing places!",
+          "That's awesome! I'm always up for a good conversation.",
+          "What's your dream job? I'm curious about different career paths!",
+          "I love trying new foods! What's your favorite cuisine?",
+          "That's so interesting! I love learning about different perspectives.",
+          "Hey! How's your day going? 😊"
+        ];
+        
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+        const partnerMessage = {
+          id: (Date.now() + 1).toString(),
+          from: 'demo-partner-123',
+          to: 'user',
+          content: randomResponse,
+          timestamp: new Date().toISOString(),
+          type: 'text'
+        };
+        dispatch({ type: 'ADD_MESSAGE', payload: partnerMessage });
+      }, 1000 + Math.random() * 2000);
+      
       return;
     }
 
