@@ -1,22 +1,15 @@
 // Firebase configuration
-// Replace these values with your actual Firebase project credentials
+// Real Firebase project credentials for ChatAndGossip
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
-  databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com"
+  apiKey: "AIzaSyDtkPTObxrlchg-BPn8ZFQ-mZXcUKt6EdE",
+  authDomain: "chatandgossip-cea9a.firebaseapp.com",
+  databaseURL: "https://chatandgossip-cea9a-default-rtdb.firebaseio.com",
+  projectId: "chatandgossip-cea9a",
+  storageBucket: "chatandgossip-cea9a.firebasestorage.app",
+  messagingSenderId: "952203566848",
+  appId: "1:952203566848:web:10bc5da467281fd1815de5",
+  measurementId: "G-S5GCH5PYPB"
 };
 
-// Instructions for setup:
-// 1. Go to https://console.firebase.google.com/
-// 2. Create a new project or select existing one
-// 3. Enable Authentication (Email/Password)
-// 4. Enable Firestore Database
-// 5. Enable Realtime Database
-// 6. Get your config from Project Settings > General > Your apps
-// 7. Replace the values above with your actual config
-// 8. Set up Firestore security rules to allow read/write
-// 9. Set up Realtime Database rules to allow read/write 
+// Firebase is now configured with real credentials!
+// Your app will connect real users across the internet in real-time. 
