@@ -94,6 +94,9 @@ export const ChatProvider = ({ children }) => {
       const userId = currentUser?.uid || userData?.uid || `guest_${Date.now()}`;
       const username = userData?.username || 'Guest User';
       
+      console.log('User ID for online tracking:', userId);
+      console.log('Username for online tracking:', username);
+      
       // Add user to online users in Firebase Realtime Database
       const { set } = await import('firebase/database');
       const { ref } = await import('firebase/database');
@@ -111,8 +114,9 @@ export const ChatProvider = ({ children }) => {
         gender: userData?.gender || 'not_disclosed'
       };
       
+      console.log('Adding user to online list:', userOnlineData);
       await set(onlineUsersRef, userOnlineData);
-      console.log('Added user to online list:', userOnlineData);
+      console.log('Successfully added user to online list');
 
       // Update user profile if authenticated
       if (currentUser) {
@@ -424,6 +428,45 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
+  const addMultipleTestUsers = async () => {
+    try {
+      const testUsers = [
+        { username: 'John', gender: 'male' },
+        { username: 'Emma', gender: 'female' },
+        { username: 'Alex', gender: 'not_disclosed' },
+        { username: 'Sarah', gender: 'female' },
+        { username: 'Mike', gender: 'male' }
+      ];
+      
+      const { set } = await import('firebase/database');
+      const { ref } = await import('firebase/database');
+      const { getDatabase } = await import('firebase/app');
+      
+      const rtdb = getDatabase();
+      
+      for (let i = 0; i < testUsers.length; i++) {
+        const testUserId = `test_user_${Date.now()}_${i}`;
+        const onlineUsersRef = ref(rtdb, `online_users/${testUserId}`);
+        
+        await set(onlineUsersRef, {
+          uid: testUserId,
+          username: testUsers[i].username,
+          isOnline: true,
+          lastSeen: Date.now(),
+          isGuest: true,
+          gender: testUsers[i].gender
+        });
+        
+        console.log('Added test user:', testUsers[i].username);
+      }
+      
+      toast.success(`Added ${testUsers.length} test users to online list`);
+    } catch (error) {
+      console.error('Error adding multiple test users:', error);
+      toast.error('Failed to add test users');
+    }
+  };
+
   const value = {
     ...state,
     joinChat,
@@ -437,7 +480,8 @@ export const ChatProvider = ({ children }) => {
     joinRoom,
     leaveRoom,
     sendRoomMessage,
-    addTestUser
+    addTestUser,
+    addMultipleTestUsers
   };
 
   return (

@@ -60,6 +60,25 @@ export const FirebaseProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [firebaseConnected, setFirebaseConnected] = useState(false);
+
+  // Check Firebase connection
+  useEffect(() => {
+    const checkFirebaseConnection = async () => {
+      try {
+        const testRef = ref(rtdb, 'test_connection');
+        await set(testRef, { timestamp: Date.now() });
+        await set(testRef, null); // Clean up
+        setFirebaseConnected(true);
+        console.log('Firebase connection successful');
+      } catch (error) {
+        console.error('Firebase connection failed:', error);
+        setFirebaseConnected(false);
+      }
+    };
+    
+    checkFirebaseConnection();
+  }, []);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -73,12 +92,15 @@ export const FirebaseProvider = ({ children }) => {
 
   // Real-time online users listener
   useEffect(() => {
+    console.log('Setting up real-time online users listener...');
     const onlineUsersRef = ref(rtdb, 'online_users');
     
     const unsubscribe = onValue(onlineUsersRef, (snapshot) => {
+      console.log('Firebase online users snapshot received:', snapshot.val());
       const users = [];
       snapshot.forEach((childSnapshot) => {
         const userData = childSnapshot.val();
+        console.log('Processing user:', childSnapshot.key, userData);
         if (userData && userData.isOnline) {
           users.push({
             uid: childSnapshot.key,
@@ -86,10 +108,16 @@ export const FirebaseProvider = ({ children }) => {
           });
         }
       });
+      console.log('Final online users array:', users);
       setOnlineUsers(users);
+    }, (error) => {
+      console.error('Error in online users listener:', error);
     });
 
-    return () => off(onlineUsersRef, 'value', unsubscribe);
+    return () => {
+      console.log('Cleaning up online users listener');
+      off(onlineUsersRef, 'value', unsubscribe);
+    };
   }, []);
 
   const signup = async (email, password, username) => {
@@ -323,6 +351,7 @@ export const FirebaseProvider = ({ children }) => {
     currentUser,
     loading,
     onlineUsers,
+    firebaseConnected,
     signup,
     login,
     logout,

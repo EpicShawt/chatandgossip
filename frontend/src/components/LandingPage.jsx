@@ -16,7 +16,7 @@ const LandingPage = ({
 }) => {
   const navigate = useNavigate();
   const { currentUser, onlineUsers: firebaseOnlineUsers } = useFirebase();
-  const { joinChat, getActiveUsers, addTestUser, findPartner } = useChat();
+  const { joinChat, getActiveUsers, addTestUser, findPartner, addMultipleTestUsers } = useChat();
   const [guestUsername, setGuestUsername] = useState('');
   const [selectedGender, setSelectedGender] = useState('any');
   const [onlineCount, setOnlineCount] = useState(0);
@@ -67,6 +67,10 @@ const LandingPage = ({
     addTestUser();
   };
 
+  const handleMultipleTestUsers = () => {
+    addMultipleTestUsers();
+  };
+
   const handleAuthenticatedChat = () => {
     if (isAuthenticated && user) {
       navigate('/chat');
@@ -103,6 +107,14 @@ const LandingPage = ({
                 className="btn-outline text-xs sm:text-sm bg-red-100 text-red-700 hover:bg-red-200"
               >
                 Add Test User
+              </button>
+
+              {/* Multiple Test Users Button */}
+              <button
+                onClick={handleMultipleTestUsers}
+                className="btn-outline text-xs sm:text-sm bg-blue-100 text-blue-700 hover:bg-blue-200"
+              >
+                Add 5 Test Users
               </button>
 
               {isAuthenticated ? (
