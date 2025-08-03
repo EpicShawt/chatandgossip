@@ -1,8 +1,22 @@
 const express = require('express')
 const router = express.Router()
+const User = require('../models/User')
 
 // In-memory storage for demo (replace with database in production)
 const users = new Map()
+
+// Get online users
+router.get('/online', async (req, res) => {
+  try {
+    const onlineUsers = await User.find({ isOnline: true })
+      .select('username gender lastSeen')
+      .sort({ lastSeen: -1 });
+    res.json(onlineUsers);
+  } catch (error) {
+    console.error('Error fetching online users:', error);
+    res.status(500).json({ error: 'Failed to fetch online users' });
+  }
+});
 
 // Get all users (admin only)
 router.get('/', (req, res) => {

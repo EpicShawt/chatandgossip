@@ -2,8 +2,10 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useFirebase } from '../context/FirebaseContext'
 
 const Login = ({ onLogin, onBack }) => {
+  const { login } = useFirebase()
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -29,21 +31,41 @@ const Login = ({ onLogin, onBack }) => {
     setIsLoading(true)
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Login with backend API
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed')
+      }
+
+      // Store token
+      localStorage.setItem('token', data.token)
       
-      // For demo purposes, accept any email/password
       const userData = {
-        id: Date.now(),
-        email: formData.email,
-        username: formData.email.split('@')[0],
+        id: data.user.id,
+        uniqueId: data.user.uniqueId,
+        email: data.user.email,
+        username: data.user.username,
+        phone: data.user.phone,
         isAuthenticated: true
       }
       
       onLogin(userData)
       toast.success('Login successful!')
     } catch (error) {
-      toast.error('Login failed. Please try again.')
+      console.error('Login error:', error)
+      toast.error(error.message || 'Login failed')
     } finally {
       setIsLoading(false)
     }

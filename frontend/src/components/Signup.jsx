@@ -2,9 +2,10 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useFirebase } from '../context/FirebaseContext'
 
 const Signup = ({ onSignup, onBack }) => {
-  const [step, setStep] = useState(1) // 1: form, 2: OTP verification
+  const { signup } = useFirebase()
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -12,7 +13,6 @@ const Signup = ({ onSignup, onBack }) => {
     confirmPassword: '',
     phone: ''
   })
-  const [otp, setOtp] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -45,43 +45,44 @@ const Signup = ({ onSignup, onBack }) => {
     setIsLoading(true)
 
     try {
-      // Simulate sending OTP
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      setStep(2)
-      toast.success('OTP sent to your email!')
-    } catch (error) {
-      toast.error('Failed to send OTP. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+      // Register with backend API
+      const response = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone
+        }),
+      })
 
-  const handleOtpSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (!otp.trim()) {
-      toast.error('Please enter the OTP')
-      return
-    }
+      const data = await response.json()
 
-    setIsLoading(true)
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed')
+      }
 
-    try {
-      // Simulate OTP verification
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Store token
+      localStorage.setItem('token', data.token)
       
+      // Create user data for app
       const userData = {
-        id: Date.now(),
-        username: formData.username,
-        email: formData.email,
-        phone: formData.phone,
+        id: data.user.id,
+        uniqueId: data.user.uniqueId,
+        username: data.user.username,
+        email: data.user.email,
+        phone: data.user.phone,
         isAuthenticated: true
       }
       
       onSignup(userData)
       toast.success('Account created successfully!')
     } catch (error) {
-      toast.error('Invalid OTP. Please try again.')
+      console.error('Signup error:', error)
+      toast.error(error.message || 'Registration failed')
     } finally {
       setIsLoading(false)
     }
@@ -109,98 +110,6 @@ const Signup = ({ onSignup, onBack }) => {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const resendOtp = async () => {
-    setIsLoading(true)
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      toast.success('OTP resent successfully!')
-    } catch (error) {
-      toast.error('Failed to resend OTP')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  if (step === 2) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8">
-          <div className="text-center">
-            <button
-              onClick={() => setStep(1)}
-              className="absolute top-8 left-8 p-2 hover:bg-white/50 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            
-            <div className="mx-auto h-12 w-12 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-full flex items-center justify-center">
-              <Mail className="w-6 h-6 text-white" />
-            </div>
-            <h2 className="mt-6 text-3xl font-bold text-gray-900">
-              Verify your email
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              We've sent a verification code to {formData.email}
-            </p>
-          </div>
-
-          <div className="card">
-            <form className="space-y-6" onSubmit={handleOtpSubmit}>
-              <div>
-                <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
-                  Verification Code
-                </label>
-                <div className="mt-1">
-                  <input
-                    id="otp"
-                    name="otp"
-                    type="text"
-                    required
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="input-field text-center text-2xl tracking-widest"
-                    placeholder="000000"
-                    maxLength={6}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Verifying...
-                    </div>
-                  ) : (
-                    'Verify Email'
-                  )}
-                </button>
-              </div>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Didn't receive the code?{' '}
-                <button
-                  onClick={resendOtp}
-                  disabled={isLoading}
-                  className="font-medium text-primary-600 hover:text-primary-500 disabled:opacity-50"
-                >
-                  Resend
-                </button>
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (

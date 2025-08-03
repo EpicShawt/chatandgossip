@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
+  uniqueId: {
+    type: String,
+    required: true,
+    unique: true,
+    length: 6
+  },
   username: {
     type: String,
     required: true,
@@ -36,6 +42,10 @@ const userSchema = new mongoose.Schema({
   isAnonymous: {
     type: Boolean,
     default: true
+  },
+  isTestUser: {
+    type: Boolean,
+    default: false
   },
   socketId: {
     type: String,

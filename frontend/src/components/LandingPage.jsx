@@ -53,11 +53,11 @@ const LandingPage = ({ user, isAuthenticated, onLogin, onLogout, onPaymentReques
     <div className="min-h-screen">
       {/* Navigation */}
       <nav className="glass-effect sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container-responsive">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-2">
-              <MessageCircle className="w-8 h-8 text-orange-600" />
-              <h1 className="text-2xl font-bold gradient-text">ChatAndGossip.com</h1>
+              <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600" />
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold gradient-text">ChatAndGossip.com</h1>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -94,10 +94,10 @@ const LandingPage = ({ user, isAuthenticated, onLogin, onLogout, onPaymentReques
       </nav>
 
       {/* Hero Section */}
-      <section className="py-20 px-4">
-        <div className="max-w-7xl mx-auto text-center">
+      <section className="py-responsive px-responsive">
+        <div className="container-responsive text-center">
           <div className="animate-fade-in">
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 gradient-text">
+            <h1 className="text-responsive-2xl sm:text-4xl lg:text-6xl xl:text-7xl font-bold mb-6 gradient-text">
               Connect with the World
             </h1>
             <p className="text-xl md:text-2xl text-gray-700 mb-8 max-w-3xl mx-auto">
@@ -267,6 +267,9 @@ const LandingPage = ({ user, isAuthenticated, onLogin, onLogout, onPaymentReques
               >
                 Start Free Chat Now
               </button>
+              <Link to="/chat" className="btn-outline text-lg px-8 py-4">
+                🧪 Direct Chat Test
+              </Link>
               <Link to="/signup" className="btn-outline text-lg px-8 py-4">
                 Create Account
               </Link>

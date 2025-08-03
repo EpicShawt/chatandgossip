@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/database');
+const { initializeFirebase } = require('./config/firebase');
 require('dotenv').config();
 
 const ChatManager = require('./services/ChatManager');
@@ -17,22 +18,76 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: [process.env.FRONTEND_URL || "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"],
     methods: ["GET", "POST"]
   }
 });
 
+// Initialize Firebase
+initializeFirebase();
+
 // Initialize chat manager
 const chatManager = new ChatManager();
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB (keeping for migration)
+connectDB().then(async () => {
+      // Create test user in database if it doesn't exist
+    try {
+      let testUser = await User.findOne({ username: 'Sarah' });
+      if (!testUser) {
+        const { generateUniqueId } = require('./utils/idGenerator');
+        const uniqueId = await generateUniqueId();
+        testUser = new User({
+          uniqueId: uniqueId,
+          username: 'Sarah',
+          email: 'sarah@test.com',
+          password: 'testpassword123',
+          gender: 'female',
+          isOnline: true,
+          isAnonymous: false,
+          isTestUser: true,
+          isVerified: true,
+          lastSeen: new Date()
+        });
+        await testUser.save();
+        console.log('Test user Sarah created in database');
+      } else {
+        // Update existing user to be test user and online
+        testUser.isOnline = true;
+        testUser.lastSeen = new Date();
+        testUser.isTestUser = true;
+        if (!testUser.uniqueId) {
+          const { generateUniqueId } = require('./utils/idGenerator');
+          testUser.uniqueId = await generateUniqueId();
+        }
+        if (!testUser.email) {
+          testUser.email = 'sarah@test.com';
+        }
+        if (!testUser.password) {
+          testUser.password = 'testpassword123';
+        }
+        if (!testUser.isVerified) {
+          testUser.isVerified = true;
+        }
+        await testUser.save();
+        console.log('Test user Sarah is online');
+      }
+    
+    // Update ChatManager's test user with database ID
+    chatManager.testUser.id = testUser._id.toString();
+    chatManager.testUser._id = testUser._id;
+    chatManager.users.set(testUser._id.toString(), chatManager.testUser);
+    
+  } catch (error) {
+    console.error('Error creating test user:', error);
+  }
+});
 
 // Middleware
 app.use(helmet());
 app.use(compression());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: [process.env.FRONTEND_URL || "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"],
   credentials: true
 }));
 
@@ -45,6 +100,11 @@ app.use(limiter);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Test route
+app.get('/test', (req, res) => {
+  res.json({ message: 'Server is working!' });
+});
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -61,18 +121,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Get online users
-app.get('/api/users/online', async (req, res) => {
-  try {
-    const onlineUsers = await User.find({ isOnline: true })
-      .select('username gender lastSeen')
-      .sort({ lastSeen: -1 });
-    res.json(onlineUsers);
-  } catch (error) {
-    console.error('Error fetching online users:', error);
-    res.status(500).json({ error: 'Failed to fetch online users' });
-  }
-});
+
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
@@ -80,6 +129,7 @@ io.on('connection', (socket) => {
 
   // User joins with their data
   socket.on('user_join', async (userData) => {
+    console.log('Received user_join event:', userData);
     try {
       let user;
       
@@ -96,6 +146,7 @@ io.on('connection', (socket) => {
       
       // If no existing user, create anonymous user
       if (!user) {
+        console.log('Creating new anonymous user:', userData);
         user = new User({
           username: userData.username,
           gender: userData.gender || 'not_disclosed',
@@ -105,12 +156,14 @@ io.on('connection', (socket) => {
           lastSeen: new Date()
         });
         await user.save();
+        console.log('New user created:', user._id, user.username);
       }
       
       socket.userId = user._id;
       socket.emit('user_joined', user);
       
       // Broadcast online status
+      console.log('Broadcasting user online:', user.username);
       io.emit('user_online', {
         id: user._id,
         username: user.username,
@@ -125,6 +178,7 @@ io.on('connection', (socket) => {
 
   // Find partner
   socket.on('find_partner', async (data) => {
+    console.log('Received find_partner event:', data);
     try {
       const user = await User.findById(socket.userId);
       if (!user) return;
@@ -402,7 +456,7 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Chat manager initialized with test user: Sarah`);
   console.log(`Database: MongoDB Atlas`);

@@ -1,10 +1,11 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const User = require('../models/User')
+const { generateUniqueId } = require('../utils/idGenerator')
 const router = express.Router()
 
-// In-memory storage for demo (replace with database in production)
-const users = new Map()
+// In-memory storage for OTP (can be replaced with Redis in production)
 const otpStore = new Map()
 
 // Generate OTP
@@ -33,40 +34,55 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' })
     }
 
-    // Check if user already exists
-    if (users.has(email)) {
-      return res.status(400).json({ error: 'User already exists' })
+    // Check if username already exists
+    const existingUsername = await User.findOne({ username })
+    if (existingUsername) {
+      return res.status(400).json({ error: 'Username already exists' })
     }
+
+    // Check if email already exists
+    const existingEmail = await User.findOne({ email })
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Email already exists' })
+    }
+
+    // Generate unique ID
+    const uniqueId = await generateUniqueId()
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    // Create user
-    const user = {
-      id: Date.now().toString(),
+    // Create user in database (auto-verified)
+    const user = new User({
+      uniqueId,
       username,
       email,
       password: hashedPassword,
       phone: phone || null,
-      createdAt: new Date(),
-      isVerified: false
-    }
-
-    // Store user
-    users.set(email, user)
-
-    // Generate and send OTP
-    const otp = generateOTP()
-    otpStore.set(email, {
-      otp,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+      isAnonymous: false,
+      isVerified: true // Auto-verify without OTP
     })
 
-    await sendOTP(email, otp)
+    await user.save()
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email, uniqueId: user.uniqueId },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    )
 
     res.status(201).json({
-      message: 'User registered successfully. Please check your email for OTP.',
-      userId: user.id
+      message: 'User registered successfully!',
+      user: {
+        id: user._id,
+        uniqueId: user.uniqueId,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+        isVerified: true
+      },
+      token
     })
 
   } catch (error) {
@@ -98,11 +114,15 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ error: 'Invalid OTP' })
     }
 
-    // Mark user as verified
-    const user = users.get(email)
-    if (user) {
-      user.isVerified = true
-      users.set(email, user)
+    // Mark user as verified in database
+    const user = await User.findOneAndUpdate(
+      { email },
+      { isVerified: true },
+      { new: true }
+    )
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
     }
 
     // Remove OTP from store
@@ -110,7 +130,7 @@ router.post('/verify-otp', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user._id, email: user.email, uniqueId: user.uniqueId },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     )
@@ -118,7 +138,8 @@ router.post('/verify-otp', async (req, res) => {
     res.json({
       message: 'Email verified successfully',
       user: {
-        id: user.id,
+        id: user._id,
+        uniqueId: user.uniqueId,
         username: user.username,
         email: user.email,
         phone: user.phone,
@@ -142,8 +163,8 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' })
     }
 
-    // Find user
-    const user = users.get(email)
+    // Find user in database
+    const user = await User.findOne({ email })
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
@@ -154,9 +175,13 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
+    // Update last seen
+    user.lastSeen = new Date()
+    await user.save()
+
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user._id, email: user.email, uniqueId: user.uniqueId },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     )
@@ -164,7 +189,8 @@ router.post('/login', async (req, res) => {
     res.json({
       message: 'Login successful',
       user: {
-        id: user.id,
+        id: user._id,
+        uniqueId: user.uniqueId,
         username: user.username,
         email: user.email,
         phone: user.phone,
@@ -188,7 +214,7 @@ router.post('/resend-otp', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' })
     }
 
-    const user = users.get(email)
+    const user = await User.findOne({ email })
     if (!user) {
       return res.status(404).json({ error: 'User not found' })
     }
@@ -264,7 +290,7 @@ router.get('/profile', async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key')
-    const user = users.get(decoded.email)
+    const user = await User.findById(decoded.userId)
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' })
@@ -272,7 +298,8 @@ router.get('/profile', async (req, res) => {
 
     res.json({
       user: {
-        id: user.id,
+        id: user._id,
+        uniqueId: user.uniqueId,
         username: user.username,
         email: user.email,
         phone: user.phone,
@@ -284,6 +311,21 @@ router.get('/profile', async (req, res) => {
   } catch (error) {
     console.error('Profile error:', error)
     res.status(401).json({ error: 'Invalid token' })
+  }
+})
+
+// Debug route to check database users (remove in production)
+router.get('/debug/users', async (req, res) => {
+  try {
+    const users = await User.find({}, { password: 0 }).sort({ createdAt: -1 })
+    res.json({
+      message: 'Database users retrieved successfully',
+      count: users.length,
+      users: users
+    })
+  } catch (error) {
+    console.error('Debug users error:', error)
+    res.status(500).json({ error: 'Failed to retrieve users' })
   }
 })
 

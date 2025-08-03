@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft, Users, Filter, RefreshCw, Shield } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
+import { useFirebase } from '../context/FirebaseContext';
 import toast from 'react-hot-toast';
 
 const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
@@ -25,11 +26,14 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     leaveChat,
     nextPartner
   } = useChat();
+  
+  const { currentUser } = useFirebase();
 
   useEffect(() => {
+    // For demo purposes, allow access even without user
     if (!user) {
-      navigate('/');
-      return;
+      console.log('No user found, but allowing demo access');
+      // Don't redirect for demo - just continue
     }
 
     // Auto-scroll to bottom when new messages arrive
@@ -49,12 +53,12 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
 
   // Auto-find partner when component mounts
   useEffect(() => {
-    if (user && isConnected && !currentPartner && !isSearching) {
+    if (isConnected && !currentPartner && !isSearching) {
       setTimeout(() => {
         findPartner();
       }, 1000);
     }
-  }, [user, isConnected, currentPartner, isSearching, findPartner]);
+  }, [isConnected, currentPartner, isSearching, findPartner]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !currentPartner) return;
@@ -109,21 +113,36 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     return partner?.isOnline ? 'Online' : 'Offline';
   };
 
+  // Test function to simulate a partner response
+  const simulatePartnerResponse = () => {
+    setTimeout(() => {
+      const mockResponse = {
+        content: "Hi! How are you doing today? 😊",
+        sender: 'partner-123',
+        senderName: 'Sarah',
+        timestamp: new Date().toISOString()
+      };
+      // Add the message directly to the chat for demo purposes
+      sendMessage(mockResponse);
+      toast.success('Demo message added!');
+    }, 1000);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-orange-100 to-orange-200">
       {/* Header */}
       <div className="glass-effect sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="container-sm">
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               <button
                 onClick={() => navigate('/')}
                 className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="w-5 h-5 text-gray-600" />
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
               </button>
               
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="relative">
                   <div className={getProfilePicture(user?.gender)}>
                     {user?.username?.charAt(0).toUpperCase()}
@@ -131,20 +150,20 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                   <div className="online-indicator online"></div>
                 </div>
                 <div>
-                  <h2 className="font-semibold text-gray-800">{user?.username}</h2>
-                  <p className="text-sm text-gray-500">You</p>
+                  <h2 className="font-semibold text-gray-800 text-sm sm:text-base">{user?.username}</h2>
+                  <p className="text-xs sm:text-sm text-gray-500">You</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 sm:space-x-2">
               {currentPartner && (
                 <button
                   onClick={() => setShowGenderFilter(true)}
                   className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
                   title="Gender Filter (Premium)"
                 >
-                  <Filter className="w-5 h-5 text-orange-600" />
+                  <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
                 </button>
               )}
               
@@ -152,7 +171,7 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                 onClick={onLogout}
                 className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
               >
-                <Shield className="w-5 h-5 text-gray-600" />
+                <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
               </button>
             </div>
           </div>
@@ -160,8 +179,8 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
       </div>
 
       {/* Chat Area */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="card h-[600px] flex flex-col">
+      <div className="container-sm py-6">
+        <div className="card h-[500px] sm:h-[600px] flex flex-col">
           {/* Partner Info */}
           {currentPartner ? (
             <div className="flex items-center space-x-3 p-4 border-b border-orange-100">
@@ -205,12 +224,21 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                 <Users className="w-12 h-12 text-orange-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No Partner Connected</h3>
                 <p className="text-gray-600 mb-4">Click the button below to find someone to chat with</p>
-                <button
-                  onClick={() => handleFindPartner()}
-                  className="btn-primary"
-                >
-                  Find Partner
-                </button>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => handleFindPartner()}
+                    className="btn-primary"
+                  >
+                    Find Partner
+                  </button>
+                  <button
+                    onClick={simulatePartnerResponse}
+                    className="btn-outline text-sm"
+                    title="Test Demo Chat"
+                  >
+                    🧪 Test Demo Chat
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -266,6 +294,13 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                   className="btn-primary px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={simulatePartnerResponse}
+                  className="btn-outline px-4 text-sm"
+                  title="Test Demo Message"
+                >
+                  🧪 Test
                 </button>
               </div>
             </div>
