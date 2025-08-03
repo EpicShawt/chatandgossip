@@ -159,20 +159,7 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     return partner?.isOnline ? 'Online' : 'Offline';
   };
 
-  // Test function to simulate a partner response
-  const simulatePartnerResponse = () => {
-    setTimeout(() => {
-      const mockResponse = {
-        content: "Hi! How are you doing today? 😊",
-        sender: 'partner-123',
-        senderName: 'Sarah',
-        timestamp: new Date().toISOString()
-      };
-      // Add the message directly to the chat for demo purposes
-      sendMessage(mockResponse);
-      toast.success('Demo message added!');
-    }, 1000);
-  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-orange-100 to-orange-200">
@@ -321,11 +308,11 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                     Find Partner
                   </button>
                   <button
-                    onClick={simulatePartnerResponse}
+                    onClick={handleNextPartner}
                     className="btn-outline text-sm"
-                    title="Test Demo Chat"
+                    title="Find Next Partner"
                   >
-                    🧪 Test Demo Chat
+                    🔄 Next Partner
                   </button>
                   
                   {/* Debug buttons - only show in development */}
@@ -410,13 +397,6 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                   className="btn-primary px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={simulatePartnerResponse}
-                  className="btn-outline px-4 text-sm"
-                  title="Test Demo Message"
-                >
-                  🧪 Test
                 </button>
               </div>
             </div>

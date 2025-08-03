@@ -185,9 +185,9 @@ export const ChatProvider = ({ children }) => {
       console.error('Error updating search status:', error);
     }
 
-    // Set a 15-second timeout for demo fallback
-    const demoTimeout = setTimeout(async () => {
-      console.log('15 seconds passed, connecting to demo partner');
+    // Set a 30-second timeout for manual next partner option
+    const searchTimeout = setTimeout(async () => {
+      console.log('30 seconds passed, no real partners found');
       
       // Mark user as no longer searching
       try {
@@ -206,19 +206,9 @@ export const ChatProvider = ({ children }) => {
         console.error('Error updating search status:', updateError);
       }
       
-      const demoPartner = {
-        uid: 'demo-partner-123',
-        username: 'Sarah',
-        displayName: 'Sarah',
-        gender: 'female',
-        isTestUser: true,
-        isOnline: true
-      };
-      
-      dispatch({ type: 'SET_PARTNER', payload: demoPartner });
       dispatch({ type: 'SET_SEARCHING', payload: false });
-      toast.success('Connected with demo partner (Sarah)!');
-    }, 15000);
+      toast.error('No partners found. Try clicking "Next Partner" to search again.');
+    }, 30000);
 
     try {
       // Get real online users from Firebase
@@ -247,9 +237,9 @@ export const ChatProvider = ({ children }) => {
       console.log('Total online users:', onlineUsers.length);
       console.log('Available partners count:', availableUsers.length);
 
-      if (availableUsers.length > 0) {
-        // Clear the demo timeout since we found a real partner
-        clearTimeout(demoTimeout);
+             if (availableUsers.length > 0) {
+         // Clear the search timeout since we found a real partner
+         clearTimeout(searchTimeout);
         
         // Find a random partner from real users
         const randomIndex = Math.floor(Math.random() * availableUsers.length);
@@ -302,50 +292,39 @@ export const ChatProvider = ({ children }) => {
           dispatch({ type: 'SET_MESSAGES', payload: messages });
         });
         
-      } else {
-        // No real users available, but don't connect to demo yet
-        // Let the timeout handle it after 15 seconds
-        console.log('No real users available, waiting 15 seconds before demo fallback');
-        console.log('This means either:');
-        console.log('1. No other users are online');
-        console.log('2. You are the only user online');
-        console.log('3. Firebase connection issues');
-      }
-    } catch (error) {
-      console.error('Error finding partner:', error);
-      clearTimeout(demoTimeout);
-      
-      // Mark user as no longer searching
-      try {
-        const { set, ref, getDatabase } = await import('firebase/database');
-        const { getApp } = await import('firebase/app');
-        
-        const app = getApp();
-        const rtdb = getDatabase(app);
-        const userRef = ref(rtdb, `online_users/${currentUserId}`);
-        
-        await set(userRef, {
-          ...(await get(userRef)).val(),
-          isSearching: false
-        });
-      } catch (updateError) {
-        console.error('Error updating search status:', updateError);
-      }
-      
-      // Fallback to demo partner immediately on error
-      const demoPartner = {
-        uid: 'demo-partner-123',
-        username: 'Sarah',
-        displayName: 'Sarah',
-        gender: 'female',
-        isTestUser: true,
-        isOnline: true
-      };
-      
-      dispatch({ type: 'SET_PARTNER', payload: demoPartner });
-      dispatch({ type: 'SET_SEARCHING', payload: false });
-      toast.success('Connected with demo partner (Sarah)!');
-    }
+             } else {
+         // No real users available, wait for timeout or manual next partner
+         console.log('No real users available, waiting for timeout or manual next partner');
+         console.log('This means either:');
+         console.log('1. No other users are online');
+         console.log('2. You are the only user online');
+         console.log('3. Firebase connection issues');
+         console.log('4. All available users are already searching');
+       }
+         } catch (error) {
+       console.error('Error finding partner:', error);
+       clearTimeout(searchTimeout);
+       
+       // Mark user as no longer searching
+       try {
+         const { set, ref, getDatabase } = await import('firebase/database');
+         const { getApp } = await import('firebase/app');
+         
+         const app = getApp();
+         const rtdb = getDatabase(app);
+         const userRef = ref(rtdb, `online_users/${currentUserId}`);
+         
+         await set(userRef, {
+           ...(await get(userRef)).val(),
+           isSearching: false
+         });
+       } catch (updateError) {
+         console.error('Error updating search status:', updateError);
+       }
+       
+       dispatch({ type: 'SET_SEARCHING', payload: false });
+       toast.error('Failed to find partner. Try clicking "Next Partner" to search again.');
+     }
   };
 
   const sendMessage = async (messageData) => {
@@ -356,57 +335,16 @@ export const ChatProvider = ({ children }) => {
 
     console.log('Sending message:', messageData);
     
-    try {
-      if (state.currentPartner.isTestUser) {
-        // Demo mode - simulate sending and receiving message
-        const demoMessage = {
-          id: Date.now().toString(),
-          from: currentUser?.uid || 'guest',
-          to: 'demo-partner-123',
-          content: messageData.content,
-          timestamp: new Date().toISOString(),
-          type: 'text'
-        };
-        dispatch({ type: 'ADD_MESSAGE', payload: demoMessage });
-        
-        // Simulate partner response
-        setTimeout(() => {
-          const responses = [
-            "That's interesting! Tell me more about that.",
-            "I love chatting with new people! What do you like to do for fun?",
-            "That's cool! I'm Sarah, nice to meet you! 👋",
-            "What's your favorite music? I'm really into indie these days!",
-            "Do you like traveling? I've been to some amazing places!",
-            "That's awesome! I'm always up for a good conversation.",
-            "What's your dream job? I'm curious about different career paths!",
-            "I love trying new foods! What's your favorite cuisine?",
-            "That's so interesting! I love learning about different perspectives.",
-            "Hey! How's your day going? 😊"
-          ];
-          
-          const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-          const partnerMessage = {
-            id: (Date.now() + 1).toString(),
-            from: 'demo-partner-123',
-            to: currentUser?.uid || 'guest',
-            content: randomResponse,
-            timestamp: new Date().toISOString(),
-            type: 'text'
-          };
-          dispatch({ type: 'ADD_MESSAGE', payload: partnerMessage });
-        }, 1000 + Math.random() * 2000);
-        
-             } else {
-         // Real user - send via Firebase
-         const currentUserId = currentUser?.uid || 'guest';
-         const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
-         await firebaseSendMessage(roomId, {
-           ...messageData,
-           from: currentUser?.uid || 'guest',
-           to: state.currentPartner.uid,
-           timestamp: new Date().toISOString()
-         });
-       }
+         try {
+       // Real user - send via Firebase
+       const currentUserId = currentUser?.uid || 'guest';
+       const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
+       await firebaseSendMessage(roomId, {
+         ...messageData,
+         from: currentUser?.uid || 'guest',
+         to: state.currentPartner.uid,
+         timestamp: new Date().toISOString()
+       });
       
       toast.success('Message sent!');
     } catch (error) {
@@ -449,7 +387,7 @@ export const ChatProvider = ({ children }) => {
       console.error('Error removing user from online list:', error);
     }
     
-         if (state.currentPartner && !state.currentPartner.isTestUser) {
+         if (state.currentPartner) {
        const currentUserId = currentUser?.uid || 'guest';
        const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
        await leaveChatRoom(roomId, currentUserId);
@@ -458,12 +396,22 @@ export const ChatProvider = ({ children }) => {
     dispatch({ type: 'CLEAR_CHAT' });
   };
 
-  const nextPartner = () => {
+  const nextPartner = async () => {
     console.log('Finding next partner');
-    leaveChat();
+    
+    // Clear current chat
+    if (messageListenerRef.current) {
+      messageListenerRef.current();
+      messageListenerRef.current = null;
+    }
+    
+    // Clear current partner
+    dispatch({ type: 'CLEAR_CHAT' });
+    
+    // Wait a moment then start new search
     setTimeout(() => {
       findPartner();
-    }, 1000);
+    }, 500);
   };
 
   const getActiveUsers = async () => {
