@@ -1,0 +1,44 @@
+{
+  "name": "chatandgossip",
+  "version": "1.0.0",
+  "description": "A modern, responsive real-time chat application built with React, Node.js, and MongoDB",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run build && npm run preview",
+    "build": "cd frontend && npm run build",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "chat",
+    "real-time",
+    "react",
+    "nodejs",
+    "mongodb",
+    "socket.io",
+    "responsive",
+    "modern"
+  ],
+  "author": "ChatAndGossip Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/chatandgossip.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/chatandgossip/issues"
+  },
+  "homepage": "https://github.com/yourusername/chatandgossip#readme",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+} 
