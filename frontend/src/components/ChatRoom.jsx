@@ -28,7 +28,9 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     leaveChat,
     nextPartner,
     joinChat,
-    getActiveUsers
+    getActiveUsers,
+    testFirebaseConnection,
+    addMultipleTestUsers
   } = useChat();
   
   const { currentUser } = useFirebase();
@@ -63,6 +65,9 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     // Join chat with user data
     joinChat(currentUserData);
 
+    // Get active users immediately
+    getActiveUsers();
+
     // Auto-find partner after a short delay with gender preference
     const timer = setTimeout(() => {
       if (!currentPartner && !isSearching) {
@@ -73,7 +78,7 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [currentUserData, joinChat, findPartner, currentPartner, isSearching, navigate, location.state]);
+  }, [currentUserData, joinChat, findPartner, currentPartner, isSearching, navigate, location.state, getActiveUsers]);
 
   // Cleanup when component unmounts
   useEffect(() => {
@@ -207,6 +212,13 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                 <span className="text-sm font-medium text-orange-700">
                   {activeUsers.length} online
                 </span>
+                <button
+                  onClick={() => getActiveUsers()}
+                  className="ml-1 p-1 hover:bg-orange-200 rounded transition-colors"
+                  title="Refresh online users"
+                >
+                  <RefreshCw className="w-3 h-3 text-orange-600" />
+                </button>
               </div>
 
               {currentPartner && (
@@ -309,6 +321,33 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                   >
                     🧪 Test Demo Chat
                   </button>
+                  
+                  {/* Debug buttons - only show in development */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="mt-4 p-3 bg-gray-100 rounded-lg">
+                      <p className="text-xs text-gray-600 mb-2">Debug Tools:</p>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => testFirebaseConnection()}
+                          className="btn-secondary w-full text-xs"
+                        >
+                          Test Firebase
+                        </button>
+                        <button
+                          onClick={() => addMultipleTestUsers()}
+                          className="btn-secondary w-full text-xs"
+                        >
+                          Add Test Users
+                        </button>
+                        <button
+                          onClick={() => getActiveUsers()}
+                          className="btn-secondary w-full text-xs"
+                        >
+                          Refresh Users
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

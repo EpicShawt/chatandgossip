@@ -110,6 +110,11 @@ export const FirebaseProvider = ({ children }) => {
       });
       console.log('Final online users array:', users);
       setOnlineUsers(users);
+      
+      // Also update active users in ChatContext if available
+      if (window.chatContextDispatch) {
+        window.chatContextDispatch({ type: 'SET_ACTIVE_USERS', payload: users });
+      }
     }, (error) => {
       console.error('Error in online users listener:', error);
     });

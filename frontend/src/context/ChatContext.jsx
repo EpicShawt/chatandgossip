@@ -67,6 +67,14 @@ const chatReducer = (state, action) => {
 
 export const ChatProvider = ({ children }) => {
   const [state, dispatch] = useReducer(chatReducer, initialState);
+  
+  // Expose dispatch globally for FirebaseContext to access
+  useEffect(() => {
+    window.chatContextDispatch = dispatch;
+    return () => {
+      delete window.chatContextDispatch;
+    };
+  }, []);
   const { 
     currentUser, 
     sendMessage: firebaseSendMessage, 
@@ -145,9 +153,9 @@ export const ChatProvider = ({ children }) => {
     dispatch({ type: 'SET_SEARCHING', payload: true });
     toast.loading('Searching for partner...');
 
-    // Set a 10-second timeout for demo fallback
+    // Set a 15-second timeout for demo fallback
     const demoTimeout = setTimeout(() => {
-      console.log('10 seconds passed, connecting to demo partner');
+      console.log('15 seconds passed, connecting to demo partner');
       const demoPartner = {
         uid: 'demo-partner-123',
         username: 'Sarah',
@@ -160,7 +168,7 @@ export const ChatProvider = ({ children }) => {
       dispatch({ type: 'SET_PARTNER', payload: demoPartner });
       dispatch({ type: 'SET_SEARCHING', payload: false });
       toast.success('Connected with demo partner (Sarah)!');
-    }, 10000);
+    }, 15000);
 
     try {
       // Get real online users from Firebase
@@ -362,9 +370,12 @@ export const ChatProvider = ({ children }) => {
   const getActiveUsers = async () => {
     try {
       const onlineUsers = await getOnlineUsers();
+      console.log('Retrieved active users:', onlineUsers);
       dispatch({ type: 'SET_ACTIVE_USERS', payload: onlineUsers });
+      return onlineUsers;
     } catch (error) {
       console.error('Error getting active users:', error);
+      return [];
     }
   };
 
@@ -461,9 +472,33 @@ export const ChatProvider = ({ children }) => {
       }
       
       toast.success(`Added ${testUsers.length} test users to online list`);
+      
+      // Refresh active users after adding test users
+      await getActiveUsers();
     } catch (error) {
       console.error('Error adding multiple test users:', error);
       toast.error('Failed to add test users');
+    }
+  };
+
+  const testFirebaseConnection = async () => {
+    try {
+      const { set, ref, getDatabase } = await import('firebase/database');
+      const { getApp } = await import('firebase/app');
+      
+      const app = getApp();
+      const rtdb = getDatabase(app);
+      const testRef = ref(rtdb, 'test_connection');
+      
+      await set(testRef, { timestamp: Date.now() });
+      await set(testRef, null); // Clean up
+      
+      toast.success('Firebase connection test successful!');
+      return true;
+    } catch (error) {
+      console.error('Firebase connection test failed:', error);
+      toast.error('Firebase connection test failed');
+      return false;
     }
   };
 
@@ -481,7 +516,8 @@ export const ChatProvider = ({ children }) => {
     leaveRoom,
     sendRoomMessage,
     addTestUser,
-    addMultipleTestUsers
+    addMultipleTestUsers,
+    testFirebaseConnection
   };
 
   return (
