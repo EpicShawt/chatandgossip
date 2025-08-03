@@ -81,8 +81,7 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
       // Remove user from online list when leaving
       if (currentUserData) {
         const userId = currentUserData.uid;
-        const { set } = import('firebase/database');
-        const { ref } = import('firebase/database');
+        const { set, ref } = import('firebase/database');
         const { getDatabase } = import('firebase/app');
         
         getDatabase().then(rtdb => {

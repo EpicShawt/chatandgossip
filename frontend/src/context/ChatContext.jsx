@@ -98,8 +98,7 @@ export const ChatProvider = ({ children }) => {
       console.log('Username for online tracking:', username);
       
       // Add user to online users in Firebase Realtime Database
-      const { set } = await import('firebase/database');
-      const { ref } = await import('firebase/database');
+      const { set, ref } = await import('firebase/database');
       const { getDatabase } = await import('firebase/app');
       
       const rtdb = getDatabase();
@@ -330,8 +329,7 @@ export const ChatProvider = ({ children }) => {
     // Remove user from online users
     try {
       const userId = currentUser?.uid || 'guest';
-      const { set } = await import('firebase/database');
-      const { ref } = await import('firebase/database');
+      const { set, ref } = await import('firebase/database');
       const { getDatabase } = await import('firebase/app');
       
       const rtdb = getDatabase();
@@ -405,8 +403,7 @@ export const ChatProvider = ({ children }) => {
   const addTestUser = async () => {
     try {
       const testUserId = `test_user_${Date.now()}`;
-      const { set } = await import('firebase/database');
-      const { ref } = await import('firebase/database');
+      const { set, ref } = await import('firebase/database');
       const { getDatabase } = await import('firebase/app');
       
       const rtdb = getDatabase();
@@ -438,8 +435,7 @@ export const ChatProvider = ({ children }) => {
         { username: 'Mike', gender: 'male' }
       ];
       
-      const { set } = await import('firebase/database');
-      const { ref } = await import('firebase/database');
+      const { set, ref } = await import('firebase/database');
       const { getDatabase } = await import('firebase/app');
       
       const rtdb = getDatabase();
