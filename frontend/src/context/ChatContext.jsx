@@ -71,8 +71,13 @@ export const ChatProvider = ({ children }) => {
 
   useEffect(() => {
     // Initialize Socket.io connection for real-time chat
-    const socket = io('http://localhost:5000', {
-      transports: ['websocket', 'polling']
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    console.log('Connecting to Socket.io server:', socketUrl);
+    
+    const socket = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+      forceNew: true
     });
 
     socketRef.current = socket;
@@ -80,13 +85,20 @@ export const ChatProvider = ({ children }) => {
 
     // Connection events
     socket.on('connect', () => {
-      console.log('Connected to server');
+      console.log('Connected to server successfully');
       dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
+      toast.success('Connected to chat server!');
     });
 
     socket.on('disconnect', () => {
       console.log('Disconnected from server');
       dispatch({ type: 'SET_CONNECTION_STATUS', payload: false });
+      toast.error('Disconnected from chat server');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      toast.error('Failed to connect to chat server');
     });
 
     // User events

@@ -18,7 +18,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: [process.env.FRONTEND_URL || "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"],
+    origin: "*", // Allow all origins for now
     methods: ["GET", "POST"]
   }
 });
@@ -87,7 +87,7 @@ connectDB().then(async () => {
 app.use(helmet());
 app.use(compression());
 app.use(cors({
-  origin: [process.env.FRONTEND_URL || "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"],
+  origin: "*", // Allow all origins for now
   credentials: true
 }));
 
