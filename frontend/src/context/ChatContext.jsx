@@ -75,16 +75,12 @@ export const ChatProvider = ({ children }) => {
       delete window.chatContextDispatch;
     };
   }, []);
-  const { 
-    currentUser, 
-    sendMessage: firebaseSendMessage, 
-    listenToMessages, 
-    joinChatRoom, 
-    leaveChatRoom,
-    getOnlineUsers,
-    createUserProfile,
-    updateUserProfile
-  } = useFirebase();
+     const { 
+     currentUser, 
+     getOnlineUsers,
+     createUserProfile,
+     updateUserProfile
+   } = useFirebase();
 
   const messageListenerRef = useRef(null);
   const onlineUsersListenerRef = useRef(null);
@@ -176,9 +172,13 @@ export const ChatProvider = ({ children }) => {
       const rtdb = getDatabase(app);
       const userRef = ref(rtdb, `online_users/${currentUserId}`);
       
+      // Get current user data first
+      const userSnapshot = await get(userRef);
+      const currentUserData = userSnapshot.val() || {};
+      
       // Update user status to searching
       await set(userRef, {
-        ...(await get(userRef)).val(),
+        ...currentUserData,
         isSearching: true
       });
     } catch (error) {
@@ -198,10 +198,13 @@ export const ChatProvider = ({ children }) => {
         const rtdb = getDatabase(app);
         const userRef = ref(rtdb, `online_users/${currentUserId}`);
         
-        await set(userRef, {
-          ...(await get(userRef)).val(),
-          isSearching: false
-        });
+                 const userSnapshot = await get(userRef);
+         const userData = userSnapshot.val() || {};
+         
+         await set(userRef, {
+           ...userData,
+           isSearching: false
+         });
       } catch (updateError) {
         console.error('Error updating search status:', updateError);
       }
@@ -250,47 +253,85 @@ export const ChatProvider = ({ children }) => {
         // Create a unique room ID for this chat
         const roomId = `chat_${Math.min(currentUserId, partner.uid)}_${Math.max(currentUserId, partner.uid)}`;
         
-        // Join the chat room
-        await joinChatRoom(roomId, { uid: currentUserId });
+                 // Create chat room in Realtime Database instead of Firestore
+         try {
+           const { set, ref, getDatabase } = await import('firebase/database');
+           const { getApp } = await import('firebase/app');
+           
+           const app = getApp();
+           const rtdb = getDatabase(app);
+           const chatRoomRef = ref(rtdb, `chat_rooms/${roomId}`);
+           
+           await set(chatRoomRef, {
+             roomId,
+             participants: [currentUserId, partner.uid],
+             createdAt: Date.now(),
+             lastActivity: Date.now()
+           });
+         } catch (error) {
+           console.error('Error creating chat room:', error);
+         }
         
-        // Mark both users as no longer searching
-        try {
-          const { set, ref, getDatabase } = await import('firebase/database');
-          const { getApp } = await import('firebase/app');
-          
-          const app = getApp();
-          const rtdb = getDatabase(app);
-          
-          // Mark current user as no longer searching
-          const currentUserRef = ref(rtdb, `online_users/${currentUserId}`);
-          await set(currentUserRef, {
-            ...(await get(currentUserRef)).val(),
-            isSearching: false
-          });
-          
-          // Mark partner as no longer searching
-          const partnerRef = ref(rtdb, `online_users/${partner.uid}`);
-          await set(partnerRef, {
-            ...(await get(partnerRef)).val(),
-            isSearching: false
-          });
-        } catch (error) {
-          console.error('Error updating search status:', error);
-        }
+                 // Mark both users as no longer searching
+         try {
+           const { set, ref, getDatabase } = await import('firebase/database');
+           const { getApp } = await import('firebase/app');
+           
+           const app = getApp();
+           const rtdb = getDatabase(app);
+           
+           // Mark current user as no longer searching
+           const currentUserRef = ref(rtdb, `online_users/${currentUserId}`);
+           const currentUserSnapshot = await get(currentUserRef);
+           const currentUserData = currentUserSnapshot.val() || {};
+           await set(currentUserRef, {
+             ...currentUserData,
+             isSearching: false
+           });
+           
+           // Mark partner as no longer searching
+           const partnerRef = ref(rtdb, `online_users/${partner.uid}`);
+           const partnerSnapshot = await get(partnerRef);
+           const partnerData = partnerSnapshot.val() || {};
+           await set(partnerRef, {
+             ...partnerData,
+             isSearching: false
+           });
+         } catch (error) {
+           console.error('Error updating search status:', error);
+         }
         
         // Set the partner
         dispatch({ type: 'SET_PARTNER', payload: partner });
         dispatch({ type: 'SET_SEARCHING', payload: false });
         toast.success(`Connected with ${partner.username || partner.displayName}!`);
         
-        // Listen to messages in this room
-        if (messageListenerRef.current) {
-          messageListenerRef.current();
-        }
-        
-        messageListenerRef.current = listenToMessages(roomId, (messages) => {
-          dispatch({ type: 'SET_MESSAGES', payload: messages });
-        });
+                 // Listen to messages in this room using Realtime Database
+         if (messageListenerRef.current) {
+           messageListenerRef.current();
+         }
+         
+         try {
+           const { ref, onValue, off, getDatabase } = await import('firebase/database');
+           const { getApp } = await import('firebase/app');
+           
+           const app = getApp();
+           const rtdb = getDatabase(app);
+           const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
+           
+           messageListenerRef.current = onValue(messagesRef, (snapshot) => {
+             const messages = [];
+             snapshot.forEach((childSnapshot) => {
+               messages.push({
+                 id: childSnapshot.key,
+                 ...childSnapshot.val()
+               });
+             });
+             dispatch({ type: 'SET_MESSAGES', payload: messages });
+           });
+         } catch (error) {
+           console.error('Error setting up message listener:', error);
+         }
         
              } else {
          // No real users available, wait for timeout or manual next partner
@@ -314,8 +355,11 @@ export const ChatProvider = ({ children }) => {
          const rtdb = getDatabase(app);
          const userRef = ref(rtdb, `online_users/${currentUserId}`);
          
+         const userSnapshot = await get(userRef);
+         const userData = userSnapshot.val() || {};
+         
          await set(userRef, {
-           ...(await get(userRef)).val(),
+           ...userData,
            isSearching: false
          });
        } catch (updateError) {
@@ -335,22 +379,30 @@ export const ChatProvider = ({ children }) => {
 
     console.log('Sending message:', messageData);
     
-         try {
-       // Real user - send via Firebase
+              try {
+       // Real user - send via Realtime Database
        const currentUserId = currentUser?.uid || 'guest';
        const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
-       await firebaseSendMessage(roomId, {
+       
+       const { push, ref, getDatabase } = await import('firebase/database');
+       const { getApp } = await import('firebase/app');
+       
+       const app = getApp();
+       const rtdb = getDatabase(app);
+       const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
+       
+       await push(messagesRef, {
          ...messageData,
          from: currentUser?.uid || 'guest',
          to: state.currentPartner.uid,
-         timestamp: new Date().toISOString()
+         timestamp: Date.now()
        });
-      
-      toast.success('Message sent!');
-    } catch (error) {
-      console.error('Error sending message:', error);
-      toast.error('Failed to send message');
-    }
+       
+       toast.success('Message sent!');
+     } catch (error) {
+       console.error('Error sending message:', error);
+       toast.error('Failed to send message');
+     }
   };
 
   const startTyping = (partnerId) => {
@@ -390,7 +442,22 @@ export const ChatProvider = ({ children }) => {
          if (state.currentPartner) {
        const currentUserId = currentUser?.uid || 'guest';
        const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
-       await leaveChatRoom(roomId, currentUserId);
+       
+       try {
+         const { set, ref, getDatabase } = await import('firebase/database');
+         const { getApp } = await import('firebase/app');
+         
+         const app = getApp();
+         const rtdb = getDatabase(app);
+         const chatRoomRef = ref(rtdb, `chat_rooms/${roomId}`);
+         
+         // Update last activity
+         await set(chatRoomRef, {
+           lastActivity: Date.now()
+         });
+       } catch (error) {
+         console.error('Error leaving chat room:', error);
+       }
      }
     
     dispatch({ type: 'CLEAR_CHAT' });
@@ -426,39 +493,7 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const joinRoom = async (roomId) => {
-    console.log('Joining room:', roomId);
-    try {
-      await joinChatRoom(roomId, currentUser);
-      dispatch({ type: 'SET_ROOM_INFO', payload: { roomId, roomName: `Room ${roomId}` } });
-      toast.success(`Joined room: Room ${roomId}`);
-    } catch (error) {
-      console.error('Error joining room:', error);
-      toast.error('Failed to join room');
-    }
-  };
-
-  const leaveRoom = (roomId) => {
-    console.log('Leaving room:', roomId);
-    leaveChatRoom(roomId, currentUser?.uid);
-    dispatch({ type: 'SET_ROOM_INFO', payload: null });
-  };
-
-  const sendRoomMessage = async (content, roomId) => {
-    console.log('Sending room message:', content);
-    try {
-      const messageData = {
-        content,
-        sender: currentUser?.uid || 'anonymous',
-        timestamp: new Date().toISOString()
-      };
-      await firebaseSendMessage(roomId, messageData);
-      toast.success('Message sent successfully!');
-    } catch (error) {
-      console.warn('Message sending error:', error.message);
-      toast.error('Failed to send message');
-    }
-  };
+  
 
   const addTestUser = async () => {
     try {
@@ -549,23 +584,20 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  const value = {
-    ...state,
-    joinChat,
-    findPartner,
-    sendMessage,
-    startTyping,
-    stopTyping,
-    leaveChat,
-    nextPartner,
-    getActiveUsers,
-    joinRoom,
-    leaveRoom,
-    sendRoomMessage,
-    addTestUser,
-    addMultipleTestUsers,
-    testFirebaseConnection
-  };
+     const value = {
+     ...state,
+     joinChat,
+     findPartner,
+     sendMessage,
+     startTyping,
+     stopTyping,
+     leaveChat,
+     nextPartner,
+     getActiveUsers,
+     addTestUser,
+     addMultipleTestUsers,
+     testFirebaseConnection
+   };
 
   return (
     <ChatContext.Provider value={value}>
