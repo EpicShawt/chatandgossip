@@ -33,27 +33,16 @@ function AppContent() {
     }
   };
 
+  // Real-time online users from Firebase
   useEffect(() => {
-    // Update user state when Firebase auth changes
     if (currentUser) {
-      setUser({
-        id: currentUser.uid,
-        username: currentUser.displayName || currentUser.email?.split('@')[0],
-        email: currentUser.email
-      });
-      setIsAuthenticated(true);
+      // User is authenticated, online count comes from Firebase context
+      console.log('Online users from Firebase:', onlineUsers);
     } else {
-      // Don't clear user state if it's a guest user
-      // Only clear if there's no currentUser and no guest user
-      if (!user || !user.isGuest) {
-        setUser(null);
-        setIsAuthenticated(false);
-      }
+      // Guest user - still show online count from Firebase
+      console.log('Online users for guest:', onlineUsers);
     }
-
-    // Fetch online users initially
-    fetchOnlineUsers();
-  }, [currentUser]);
+  }, [currentUser, onlineUsers]);
 
   const handleLogin = (userData) => {
     console.log('Logging in user:', userData);

@@ -15,15 +15,17 @@ const LandingPage = ({
   connectionStatus = 'connected'
 }) => {
   const navigate = useNavigate();
-  const { currentUser } = useFirebase();
+  const { currentUser, onlineUsers: firebaseOnlineUsers } = useFirebase();
   const { joinChat, getActiveUsers } = useChat();
   const [guestUsername, setGuestUsername] = useState('');
   const [onlineCount, setOnlineCount] = useState(0);
 
   useEffect(() => {
-    // Update online count
-    setOnlineCount(onlineUsers.length);
-  }, [onlineUsers]);
+    // Use Firebase online users count (real-time)
+    const count = firebaseOnlineUsers?.length || onlineUsers?.length || 0;
+    setOnlineCount(count);
+    console.log('Real-time online count:', count);
+  }, [firebaseOnlineUsers, onlineUsers]);
 
   const handleGuestChat = () => {
     if (!guestUsername.trim()) {
