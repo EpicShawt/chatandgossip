@@ -55,32 +55,22 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
 
   // Join chat and find partner when component mounts
   useEffect(() => {
-    if (isConnected && (currentUser || currentUserData)) {
-      const userData = currentUser || currentUserData;
-      
-      // Join chat with user data
-      joinChat({
-        uid: userData.uid || userData.id,
-        username: userData.username || userData.displayName || userData.email?.split('@')[0],
-        email: userData.email,
-        gender: userData.gender || 'not_disclosed',
-        isGuest: isGuest
-      });
-      
-      // Get active users
-      getActiveUsers();
-      
-      // Auto-find partner after joining
-      setTimeout(() => {
-        if (!currentPartner && !isSearching) {
-          findPartner();
-        }
-      }, 2000);
-    } else if (isConnected) {
-      // If no user but connected, still try to get active users
-      getActiveUsers();
-    }
-  }, [isConnected, currentUser, currentUserData, joinChat, getActiveUsers, currentPartner, isSearching, findPartner, isGuest]);
+    // Auto-find partner after a short delay
+    const timer = setTimeout(() => {
+      if (!currentPartner && !isSearching) {
+        findPartner();
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [currentPartner, isSearching, findPartner]);
+
+  // Get active users periodically
+  useEffect(() => {
+    getActiveUsers();
+    const interval = setInterval(getActiveUsers, 5000);
+    return () => clearInterval(interval);
+  }, [getActiveUsers]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !currentPartner) return;

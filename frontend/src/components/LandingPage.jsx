@@ -57,10 +57,7 @@ const LandingPage = ({
         lastSeen: new Date().toISOString()
       };
 
-      // Join chat as guest
-      await joinChat(guestUser);
-      
-      // Navigate to chat
+      // Navigate to chat immediately
       navigate('/chat', { 
         state: { 
           user: guestUser,
@@ -263,28 +260,19 @@ const LandingPage = ({
         </div>
 
         {/* Online Users Preview */}
-        {onlineUsers.length > 0 && (
+        {onlineCount > 0 && (
           <div className="card p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
               <Users className="w-5 h-5 text-orange-600" />
               <span>People Online Now ({onlineCount})</span>
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {onlineUsers.slice(0, 8).map((user, index) => (
-                <div key={index} className="flex items-center space-x-2 p-2 bg-orange-50 rounded-lg">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm text-gray-700 truncate">
-                    {user.username || user.displayName || 'Anonymous'}
-                  </span>
-                </div>
-              ))}
-              {onlineUsers.length > 8 && (
-                <div className="flex items-center space-x-2 p-2 bg-orange-50 rounded-lg">
-                  <span className="text-sm text-gray-600">
-                    +{onlineUsers.length - 8} more
-                  </span>
-                </div>
-              )}
+            <div className="text-center">
+              <div className="text-3xl font-bold text-orange-600 mb-2">
+                {onlineCount}
+              </div>
+              <p className="text-sm text-gray-600">
+                {onlineCount === 1 ? 'person is' : 'people are'} online and ready to chat
+              </p>
             </div>
           </div>
         )}
