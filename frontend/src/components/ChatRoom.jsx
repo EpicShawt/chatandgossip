@@ -19,12 +19,15 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     isConnected,
     isSearching,
     typingUsers,
+    activeUsers,
     findPartner,
     sendMessage,
     startTyping,
     stopTyping,
     leaveChat,
-    nextPartner
+    nextPartner,
+    joinChat,
+    getActiveUsers
   } = useChat();
   
   const { currentUser } = useFirebase();
@@ -51,14 +54,28 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     }
   }, [message, currentPartner, startTyping, stopTyping]);
 
-  // Auto-find partner when component mounts
+  // Join chat and find partner when component mounts
   useEffect(() => {
-    if (isConnected && !currentPartner && !isSearching) {
+    if (isConnected && user) {
+      // Join chat with user data
+      joinChat({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        gender: user.gender || 'not_disclosed'
+      });
+      
+      // Get active users
+      getActiveUsers();
+      
+      // Auto-find partner after joining
       setTimeout(() => {
-        findPartner();
-      }, 1000);
+        if (!currentPartner && !isSearching) {
+          findPartner();
+        }
+      }, 2000);
     }
-  }, [isConnected, currentPartner, isSearching, findPartner]);
+  }, [isConnected, user, joinChat, getActiveUsers, currentPartner, isSearching, findPartner]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !currentPartner) return;
@@ -224,6 +241,25 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                 <Users className="w-12 h-12 text-orange-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No Partner Connected</h3>
                 <p className="text-gray-600 mb-4">Click the button below to find someone to chat with</p>
+                
+                {/* Active Users Section */}
+                {activeUsers.length > 0 && (
+                  <div className="mb-4 p-4 bg-orange-50 rounded-lg">
+                    <h4 className="text-sm font-semibold text-orange-700 mb-2">
+                      Active Users ({activeUsers.length})
+                    </h4>
+                    <div className="space-y-1">
+                      {activeUsers.map((activeUser) => (
+                        <div key={activeUser.id} className="flex items-center space-x-2 text-xs">
+                          <div className={`w-2 h-2 rounded-full ${activeUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                          <span className="text-gray-700">{activeUser.username}</span>
+                          <span className="text-gray-500">({getGenderDisplay(activeUser.gender)})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="space-y-3">
                   <button
                     onClick={() => handleFindPartner()}

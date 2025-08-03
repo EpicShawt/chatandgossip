@@ -1,18 +1,20 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { useFirebase } from './FirebaseContext';
+import { io } from 'socket.io-client';
 
 const ChatContext = createContext();
 
 const initialState = {
   messages: [],
   currentPartner: null,
-  isConnected: true, // Firebase is always connected
+  isConnected: false,
   isSearching: false,
   typingUsers: [],
   chatType: 'random',
   roomInfo: null,
-  participants: []
+  participants: [],
+  activeUsers: [],
+  socket: null
 };
 
 const chatReducer = (state, action) => {
@@ -52,6 +54,12 @@ const chatReducer = (state, action) => {
     case 'SET_PARTICIPANTS':
       return { ...state, participants: action.payload };
     
+    case 'SET_ACTIVE_USERS':
+      return { ...state, activeUsers: action.payload };
+    
+    case 'SET_SOCKET':
+      return { ...state, socket: action.payload };
+    
     default:
       return state;
   }
@@ -59,144 +67,218 @@ const chatReducer = (state, action) => {
 
 export const ChatProvider = ({ children }) => {
   const [state, dispatch] = useReducer(chatReducer, initialState);
-  const { sendMessage: firebaseSendMessage, listenToMessages, joinChatRoom, leaveChatRoom } = useFirebase();
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    console.log('ChatContext: Firebase chat provider initialized');
-    dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
+    // Initialize Socket.io connection
+    const socket = io('http://localhost:5000', {
+      transports: ['websocket', 'polling']
+    });
+
+    socketRef.current = socket;
+    dispatch({ type: 'SET_SOCKET', payload: socket });
+
+    // Connection events
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      dispatch({ type: 'SET_CONNECTION_STATUS', payload: false });
+    });
+
+    // User events
+    socket.on('user_joined', (user) => {
+      console.log('User joined:', user);
+    });
+
+    socket.on('user_online', (user) => {
+      console.log('User online:', user);
+      // Update active users list
+      socket.emit('get_active_users');
+    });
+
+    socket.on('user_offline', (user) => {
+      console.log('User offline:', user);
+      // Update active users list
+      socket.emit('get_active_users');
+    });
+
+    socket.on('active_users', (users) => {
+      console.log('Active users received:', users);
+      dispatch({ type: 'SET_ACTIVE_USERS', payload: users });
+    });
+
+    // Partner matching events
+    socket.on('partner_found', (partner) => {
+      console.log('Partner found:', partner);
+      dispatch({ type: 'SET_PARTNER', payload: partner });
+      toast.success(`Connected with ${partner.username}!`);
+    });
+
+    socket.on('searching', (data) => {
+      console.log('Searching for partner:', data);
+      dispatch({ type: 'SET_SEARCHING', payload: true });
+      toast.loading('Searching for partner...');
+    });
+
+    socket.on('partner_left', () => {
+      console.log('Partner left');
+      dispatch({ type: 'CLEAR_CHAT' });
+      toast.error('Partner disconnected');
+    });
+
+    // Message events
+    socket.on('message_received', (message) => {
+      console.log('Message received:', message);
+      dispatch({ type: 'ADD_MESSAGE', payload: message });
+    });
+
+    socket.on('message_sent', (message) => {
+      console.log('Message sent:', message);
+      dispatch({ type: 'ADD_MESSAGE', payload: message });
+    });
+
+    // Typing events
+    socket.on('partner_typing', (data) => {
+      console.log('Partner typing:', data);
+      dispatch({ type: 'SET_TYPING_USERS', payload: [data.from] });
+    });
+
+    socket.on('partner_stopped_typing', (data) => {
+      console.log('Partner stopped typing:', data);
+      dispatch({ type: 'SET_TYPING_USERS', payload: [] });
+    });
+
+    // Error handling
+    socket.on('error', (error) => {
+      console.error('Socket error:', error);
+      toast.error(error.message || 'Connection error');
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
+  const joinChat = (userData) => {
+    if (!socketRef.current) return;
+    
+    console.log('Joining chat with user data:', userData);
+    socketRef.current.emit('user_join', userData);
+  };
+
   const findPartner = (options = {}) => {
-    console.log('ChatContext: Finding partner with options:', options);
+    if (!socketRef.current) {
+      toast.error('Not connected to server');
+      return;
+    }
+
+    console.log('Finding partner with options:', options);
     dispatch({ type: 'SET_SEARCHING', payload: true });
     toast.loading('Searching for partner...');
     
-    // For now, we'll simulate finding a partner
-    // In a real implementation, you'd use Firebase to find available users
-    setTimeout(() => {
-      const mockPartner = {
-        id: 'partner-123',
-        username: 'Sarah',
-        gender: 'female'
-      };
-      dispatch({ type: 'SET_PARTNER', payload: mockPartner });
-      dispatch({ type: 'SET_SEARCHING', payload: false });
-      toast.success(`Connected with ${mockPartner.username}!`);
-    }, 2000);
+    socketRef.current.emit('find_partner', {
+      genderFilter: options.genderFilter || null
+    });
   };
 
   const sendMessage = async (messageData) => {
-    console.log('ChatContext: Sending message:', messageData);
     if (!state.currentPartner) {
-      console.log('ChatContext: No partner connected');
       toast.error('No partner connected');
       return;
     }
 
-    try {
-      const roomId = `chat_${state.currentPartner.id}`;
-      await firebaseSendMessage(roomId, messageData);
-      
-      // Add message to local state
-      const localMessage = {
-        ...messageData,
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString()
-      };
-      dispatch({ type: 'ADD_MESSAGE', payload: localMessage });
-      toast.success('Message sent successfully!');
-    } catch (error) {
-      console.warn('Message sending error:', error.message);
-      // Add message locally for demo purposes
-      const localMessage = {
-        ...messageData,
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString()
-      };
-      dispatch({ type: 'ADD_MESSAGE', payload: localMessage });
-      toast.success('Message sent (demo mode)');
+    if (!socketRef.current) {
+      toast.error('Not connected to server');
+      return;
     }
+
+    console.log('Sending message:', messageData);
+    
+    socketRef.current.emit('private_message', {
+      to: state.currentPartner.id,
+      content: messageData.content
+    });
   };
 
   const startTyping = (partnerId) => {
-    console.log('ChatContext: Starting typing to partner:', partnerId);
-    // Firebase typing implementation would go here
+    if (!socketRef.current || !state.currentPartner) return;
+    
+    console.log('Starting typing to partner:', partnerId);
+    socketRef.current.emit('typing', {
+      to: state.currentPartner.id
+    });
   };
 
   const stopTyping = () => {
-    console.log('ChatContext: Stopping typing');
-    // Firebase typing implementation would go here
+    if (!socketRef.current || !state.currentPartner) return;
+    
+    console.log('Stopping typing');
+    socketRef.current.emit('stop_typing', {
+      to: state.currentPartner.id
+    });
   };
 
   const leaveChat = () => {
-    console.log('ChatContext: Leaving chat');
+    if (!socketRef.current) return;
+    
+    console.log('Leaving chat');
+    socketRef.current.emit('leave_chat');
     dispatch({ type: 'CLEAR_CHAT' });
   };
 
   const nextPartner = () => {
-    console.log('ChatContext: Finding next partner');
+    console.log('Finding next partner');
     leaveChat();
     setTimeout(() => {
       findPartner();
     }, 1000);
   };
 
+  const getActiveUsers = () => {
+    if (!socketRef.current) return;
+    
+    socketRef.current.emit('get_active_users');
+  };
+
   const joinRoom = async (roomId) => {
-    console.log('ChatContext: Joining room:', roomId);
-    try {
-      // This would be implemented with Firebase
-      dispatch({ type: 'SET_ROOM_INFO', payload: { roomId, roomName: `Room ${roomId}` } });
-      toast.success(`Joined room: Room ${roomId}`);
-    } catch (error) {
-      console.error('Error joining room:', error);
-      toast.error('Failed to join room');
-    }
+    if (!socketRef.current) return;
+    
+    console.log('Joining room:', roomId);
+    socketRef.current.emit('join_room', { roomId });
   };
 
   const leaveRoom = (roomId) => {
-    console.log('ChatContext: Leaving room:', roomId);
+    if (!socketRef.current) return;
+    
+    console.log('Leaving room:', roomId);
+    socketRef.current.emit('leave_room', { roomId });
     dispatch({ type: 'SET_ROOM_INFO', payload: null });
   };
 
   const sendRoomMessage = async (content, roomId) => {
-    console.log('ChatContext: Sending room message:', content);
-    try {
-      const messageData = {
-        content,
-        sender: 'user',
-        timestamp: new Date().toISOString()
-      };
-      await firebaseSendMessage(roomId, messageData);
-      
-      // Add message to local state
-      const localMessage = {
-        ...messageData,
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString()
-      };
-      dispatch({ type: 'ADD_MESSAGE', payload: localMessage });
-      toast.success('Message sent successfully!');
-    } catch (error) {
-      console.warn('Message sending error:', error.message);
-      // Add message locally for demo purposes
-      const localMessage = {
-        ...messageData,
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString()
-      };
-      dispatch({ type: 'ADD_MESSAGE', payload: localMessage });
-      toast.success('Message sent (demo mode)');
-    }
+    if (!socketRef.current) return;
+    
+    console.log('Sending room message:', content);
+    socketRef.current.emit('room_message', {
+      roomId,
+      content
+    });
   };
 
   const value = {
     ...state,
+    joinChat,
     findPartner,
     sendMessage,
     startTyping,
     stopTyping,
     leaveChat,
     nextPartner,
+    getActiveUsers,
     joinRoom,
     leaveRoom,
     sendRoomMessage

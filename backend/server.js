@@ -159,10 +159,21 @@ io.on('connection', (socket) => {
         console.log('New user created:', user._id, user.username);
       }
       
-      socket.userId = user._id;
+      // Add user to ChatManager
+      const chatUser = {
+        id: user._id.toString(),
+        username: user.username,
+        gender: user.gender,
+        isOnline: true,
+        isTestUser: user.isTestUser || false,
+        socketId: socket.id
+      };
+      chatManager.users.set(user._id.toString(), chatUser);
+      
+      socket.userId = user._id.toString();
       socket.emit('user_joined', user);
       
-      // Broadcast online status
+      // Broadcast online status to all clients
       console.log('Broadcasting user online:', user.username);
       io.emit('user_online', {
         id: user._id,
@@ -170,6 +181,11 @@ io.on('connection', (socket) => {
         gender: user.gender,
         isOnline: true
       });
+
+      // Send current active users to the new user
+      const activeUsers = chatManager.getActiveUsers();
+      socket.emit('active_users', activeUsers);
+      
     } catch (error) {
       console.error('Error in user_join:', error);
       socket.emit('error', { message: 'Failed to join chat' });
@@ -184,7 +200,7 @@ io.on('connection', (socket) => {
       if (!user) return;
 
       // Add to waiting list
-      chatManager.waitingUsers.set(user._id.toString(), user);
+      chatManager.addToWaitingList(user._id.toString(), data.genderFilter);
       
       // Look for partner
       const partner = chatManager.findPartner(user._id.toString(), data.genderFilter);
@@ -216,6 +232,12 @@ io.on('connection', (socket) => {
       console.error('Error in find_partner:', error);
       socket.emit('error', { message: 'Failed to find partner' });
     }
+  });
+
+  // Get active users
+  socket.on('get_active_users', () => {
+    const activeUsers = chatManager.getActiveUsers();
+    socket.emit('active_users', activeUsers);
   });
 
   // Send private message
@@ -319,6 +341,7 @@ io.on('connection', (socket) => {
     if (!user) return;
 
     chatManager.leaveChat(user.id);
+    chatManager.removeFromWaitingList(user.id);
     
     // Notify partner
     const chatPair = Array.from(chatManager.chatPairs.values())
@@ -426,6 +449,17 @@ io.on('connection', (socket) => {
           user.lastSeen = new Date();
           user.socketId = null;
           await user.save();
+          
+          // Update ChatManager
+          const chatUser = chatManager.users.get(socket.userId);
+          if (chatUser) {
+            chatUser.isOnline = false;
+            chatUser.lastSeen = new Date();
+            chatManager.users.set(socket.userId, chatUser);
+          }
+          
+          // Remove from waiting list
+          chatManager.removeFromWaitingList(socket.userId);
           
           // Broadcast offline status
           io.emit('user_offline', {

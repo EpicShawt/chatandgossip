@@ -64,16 +64,12 @@ class ChatManager {
 
   findPartner(userId, genderFilter = null) {
     const user = this.users.get(userId);
-    if (!user || user.isTestUser) return null;
+    if (!user) return null;
 
-    // If user wants to chat with test user, pair them
-    if (genderFilter === 'female' || !genderFilter) {
-      return this.testUser;
-    }
-
-    // Look for real users in waiting list
+    // First, try to find a real user (not test user)
     for (const [waitingUserId, waitingUser] of this.waitingUsers) {
       if (waitingUserId === userId) continue;
+      if (waitingUser.isTestUser) continue; // Skip test users for real users
       
       // Check gender compatibility
       if (genderFilter && waitingUser.gender !== genderFilter && waitingUser.gender !== 'not_disclosed') {
@@ -86,6 +82,11 @@ class ChatManager {
       }
       
       return waitingUser;
+    }
+    
+    // If no real user found and user doesn't mind test users, pair with test user
+    if (!genderFilter || genderFilter === 'female') {
+      return this.testUser;
     }
     
     return null;
@@ -252,7 +253,7 @@ class ChatManager {
 
   getOnlineUsers() {
     return Array.from(this.users.values())
-      .filter(user => user.isOnline)
+      .filter(user => user.isOnline && !user.isTestUser) // Exclude test users from online list
       .map(user => ({
         id: user.id,
         username: user.username,
@@ -260,6 +261,45 @@ class ChatManager {
         isOnline: user.isOnline,
         lastSeen: user.lastSeen
       }));
+  }
+
+  // New method to get active users for display
+  getActiveUsers() {
+    const activeUsers = [];
+    
+    // Add real online users
+    for (const [userId, user] of this.users) {
+      if (user.isOnline && !user.isTestUser) {
+        activeUsers.push({
+          id: user.id,
+          username: user.username,
+          gender: user.gender,
+          isOnline: true,
+          lastSeen: user.lastSeen
+        });
+      }
+    }
+    
+    return activeUsers;
+  }
+
+  // New method to check if user is in waiting list
+  isUserWaiting(userId) {
+    return this.waitingUsers.has(userId);
+  }
+
+  // New method to add user to waiting list
+  addToWaitingList(userId, genderFilter = null) {
+    const user = this.users.get(userId);
+    if (user) {
+      user.genderFilter = genderFilter;
+      this.waitingUsers.set(userId, user);
+    }
+  }
+
+  // New method to remove user from waiting list
+  removeFromWaitingList(userId) {
+    this.waitingUsers.delete(userId);
   }
 }
 
