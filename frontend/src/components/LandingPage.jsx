@@ -16,8 +16,9 @@ const LandingPage = ({
 }) => {
   const navigate = useNavigate();
   const { currentUser, onlineUsers: firebaseOnlineUsers } = useFirebase();
-  const { joinChat, getActiveUsers, addTestUser } = useChat();
+  const { joinChat, getActiveUsers, addTestUser, findPartner } = useChat();
   const [guestUsername, setGuestUsername] = useState('');
+  const [selectedGender, setSelectedGender] = useState('any');
   const [onlineCount, setOnlineCount] = useState(0);
 
   useEffect(() => {
@@ -54,7 +55,8 @@ const LandingPage = ({
     navigate('/chat', { 
       state: { 
         user: guestUser,
-        isGuest: true 
+        isGuest: true,
+        genderPreference: selectedGender
       } 
     });
     
@@ -200,6 +202,25 @@ const LandingPage = ({
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
                   Choose a unique username to start chatting immediately
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Partner Preference (Optional)
+                </label>
+                <select
+                  value={selectedGender}
+                  onChange={(e) => setSelectedGender(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="any">Any Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="not_disclosed">Not Disclosed</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-2">
+                  Choose your preferred partner gender (optional)
                 </p>
               </div>
             </div>

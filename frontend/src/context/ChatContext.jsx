@@ -102,13 +102,17 @@ export const ChatProvider = ({ children }) => {
       const rtdb = getDatabase();
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       
-      await set(onlineUsersRef, {
+      const userOnlineData = {
         uid: userId,
         username: username,
         isOnline: true,
         lastSeen: Date.now(),
-        isGuest: !currentUser
-      });
+        isGuest: !currentUser,
+        gender: userData?.gender || 'not_disclosed'
+      };
+      
+      await set(onlineUsersRef, userOnlineData);
+      console.log('Added user to online list:', userOnlineData);
 
       // Update user profile if authenticated
       if (currentUser) {
@@ -121,7 +125,7 @@ export const ChatProvider = ({ children }) => {
 
       // Get online users for matching
       const onlineUsers = await getOnlineUsers();
-      console.log('Current online users:', onlineUsers);
+      console.log('Current online users after joining:', onlineUsers);
       dispatch({ type: 'SET_ONLINE_USERS', payload: onlineUsers });
       
       toast.success('Joined chat successfully!');
@@ -137,6 +141,23 @@ export const ChatProvider = ({ children }) => {
     dispatch({ type: 'SET_SEARCHING', payload: true });
     toast.loading('Searching for partner...');
 
+    // Set a 10-second timeout for demo fallback
+    const demoTimeout = setTimeout(() => {
+      console.log('10 seconds passed, connecting to demo partner');
+      const demoPartner = {
+        uid: 'demo-partner-123',
+        username: 'Sarah',
+        displayName: 'Sarah',
+        gender: 'female',
+        isTestUser: true,
+        isOnline: true
+      };
+      
+      dispatch({ type: 'SET_PARTNER', payload: demoPartner });
+      dispatch({ type: 'SET_SEARCHING', payload: false });
+      toast.success('Connected with demo partner (Sarah)!');
+    }, 10000);
+
     try {
       // Get real online users from Firebase
       const onlineUsers = await getOnlineUsers();
@@ -147,17 +168,26 @@ export const ChatProvider = ({ children }) => {
       console.log('Current user ID:', currentUserId);
       
       // Filter out current user and find available partners
-      const availableUsers = onlineUsers.filter(user => 
+      let availableUsers = onlineUsers.filter(user => 
         user.uid !== currentUserId && 
-        user.isOnline &&
-        (!options.genderFilter || user.gender === options.genderFilter || user.gender === 'not_disclosed')
+        user.isOnline
       );
+
+      // Apply gender filter if specified
+      if (options.genderFilter && options.genderFilter !== 'any') {
+        availableUsers = availableUsers.filter(user => 
+          user.gender === options.genderFilter || user.gender === 'not_disclosed'
+        );
+      }
 
       console.log('Available partners after filtering:', availableUsers);
       console.log('Total online users:', onlineUsers.length);
       console.log('Available partners count:', availableUsers.length);
 
       if (availableUsers.length > 0) {
+        // Clear the demo timeout since we found a real partner
+        clearTimeout(demoTimeout);
+        
         // Find a random partner from real users
         const randomIndex = Math.floor(Math.random() * availableUsers.length);
         const partner = availableUsers[randomIndex];
@@ -181,30 +211,19 @@ export const ChatProvider = ({ children }) => {
         });
         
       } else {
-        // No real users available, use demo partner
-        console.log('No real users available, using demo partner');
+        // No real users available, but don't connect to demo yet
+        // Let the timeout handle it after 10 seconds
+        console.log('No real users available, waiting 10 seconds before demo fallback');
         console.log('This means either:');
         console.log('1. No other users are online');
         console.log('2. You are the only user online');
         console.log('3. Firebase connection issues');
-        
-        const demoPartner = {
-          uid: 'demo-partner-123',
-          username: 'Sarah',
-          displayName: 'Sarah',
-          gender: 'female',
-          isTestUser: true,
-          isOnline: true
-        };
-        
-        dispatch({ type: 'SET_PARTNER', payload: demoPartner });
-        dispatch({ type: 'SET_SEARCHING', payload: false });
-        toast.success('Connected with demo partner (Sarah)!');
       }
     } catch (error) {
       console.error('Error finding partner:', error);
+      clearTimeout(demoTimeout);
       
-      // Fallback to demo partner
+      // Fallback to demo partner immediately on error
       const demoPartner = {
         uid: 'demo-partner-123',
         username: 'Sarah',

@@ -55,15 +55,44 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
 
   // Join chat and find partner when component mounts
   useEffect(() => {
-    // Auto-find partner after a short delay
+    if (!currentUserData) {
+      navigate('/');
+      return;
+    }
+
+    // Join chat with user data
+    joinChat(currentUserData);
+
+    // Auto-find partner after a short delay with gender preference
     const timer = setTimeout(() => {
       if (!currentPartner && !isSearching) {
-        findPartner();
+        const genderPreference = location.state?.genderPreference || 'any';
+        console.log('Finding partner with gender preference:', genderPreference);
+        findPartner({ genderFilter: genderPreference });
       }
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, []); // Remove dependencies to prevent re-runs
+  }, [currentUserData, joinChat, findPartner, currentPartner, isSearching, navigate, location.state]);
+
+  // Cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      // Remove user from online list when leaving
+      if (currentUserData) {
+        const userId = currentUserData.uid;
+        const { set } = import('firebase/database');
+        const { ref } = import('firebase/database');
+        const { getDatabase } = import('firebase/app');
+        
+        getDatabase().then(rtdb => {
+          const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
+          set(onlineUsersRef, null);
+          console.log('Removed user from online list on unmount:', userId);
+        });
+      }
+    };
+  }, [currentUserData]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !currentPartner) return;
