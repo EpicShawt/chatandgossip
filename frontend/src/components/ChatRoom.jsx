@@ -400,24 +400,24 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
               return (
                 <div
                   key={msg.messageId || index}
-                  className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${isOwnMessage ? 'justify-start' : 'justify-end'}`}
                 >
-                  <div className={`chat-bubble ${isOwnMessage ? 'sent' : 'received'}`}>
-                    <div className={`flex items-end space-x-2 ${isOwnMessage ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                      {!isOwnMessage && (
+                  <div className={`chat-bubble ${isOwnMessage ? 'received' : 'sent'}`}>
+                    <div className={`flex items-end space-x-2 ${isOwnMessage ? 'flex-row' : 'flex-row-reverse space-x-reverse'}`}>
+                      {isOwnMessage && (
                         <div className="flex-shrink-0">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getProfilePicture(currentPartner?.gender, currentPartner?.profilePicture)}`}>
-                            {currentPartner?.username?.charAt(0).toUpperCase()}
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getProfilePicture(currentUserData?.gender, currentUserData?.profilePicture)}`}>
+                            {currentUserData?.username?.charAt(0).toUpperCase()}
                           </div>
                         </div>
                       )}
                       <div className="flex-1">
                         <p className="text-sm">{msg.content}</p>
-                        <div className={`flex items-center justify-between mt-1 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
-                          <p className={`text-xs opacity-70 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
+                        <div className={`flex items-center justify-between mt-1 ${isOwnMessage ? 'flex-row' : 'flex-row-reverse'}`}>
+                          <p className={`text-xs opacity-70 ${isOwnMessage ? 'text-left' : 'text-right'}`}>
                             {new Date(msg.timestamp).toLocaleTimeString()}
                           </p>
-                          {renderMessageStatus(msg.status, isOwnMessage)}
+                          {renderMessageStatus(msg.status, !isOwnMessage)}
                         </div>
                       </div>
                     </div>
@@ -428,8 +428,8 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
             
             {/* Typing Indicator */}
             {typingUsers.length > 0 && (
-              <div className="flex justify-start">
-                <div className="chat-bubble received">
+              <div className="flex justify-end">
+                <div className="chat-bubble sent">
                   <div className="typing-indicator">
                     <div className="typing-dot"></div>
                     <div className="typing-dot"></div>

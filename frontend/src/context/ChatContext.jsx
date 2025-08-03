@@ -158,8 +158,21 @@ export const ChatProvider = ({ children }) => {
       const userId = currentUser?.uid || userData?.uid || `guest_${Date.now()}`;
       const username = userData?.username || 'Guest User';
       
+      // Get user's IP address
+      let ipAddress = 'unknown';
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        ipAddress = data.ip;
+      } catch (error) {
+        console.error('Error getting IP address:', error);
+        // Fallback to a random IP for testing
+        ipAddress = `test_${Math.random().toString(36).substring(2, 8)}`;
+      }
+      
       console.log('User ID for online tracking:', userId);
       console.log('Username for online tracking:', username);
+      console.log('IP Address:', ipAddress);
       
       // Add user to online users in Firebase Realtime Database
       const app = getApp();
@@ -180,7 +193,8 @@ export const ChatProvider = ({ children }) => {
         isSearching: false,
         currentPartner: null, // Prevent multiple connections
         profilePicture: userData?.profilePicture || 'default1',
-        userId: existingUserData.userId || userData?.userId || Math.random().toString(36).substring(2, 8).toUpperCase()
+        userId: existingUserData.userId || userData?.userId || Math.random().toString(36).substring(2, 8).toUpperCase(),
+        ipAddress: ipAddress // Store IP address
       };
       
       console.log('Adding user to online list:', userOnlineData);
@@ -289,7 +303,8 @@ export const ChatProvider = ({ children }) => {
         user.uid !== currentUserId && 
         user.isOnline &&
         !user.isSearching && // Don't pair with users who are already searching
-        !user.currentPartner // Don't pair with users who already have a partner
+        !user.currentPartner && // Don't pair with users who already have a partner
+        user.ipAddress !== currentUserData.ipAddress // Don't pair with same IP address
       );
 
       // Apply gender filter if specified
