@@ -13,6 +13,8 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [showGenderFilter, setShowGenderFilter] = useState(false);
   const [selectedGender, setSelectedGender] = useState('any');
+  const [hasJoinedChat, setHasJoinedChat] = useState(false);
+  const [hasStartedSearching, setHasStartedSearching] = useState(false);
   
   const {
     messages,
@@ -33,7 +35,7 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     addMultipleTestUsers
   } = useChat();
   
-  const { currentUser } = useFirebase();
+  const { currentUser, onlineUsers } = useFirebase();
 
   // Get user from location state (for guest users) or props
   const currentUserData = location.state?.user || user;
@@ -62,23 +64,27 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
       return;
     }
 
-    // Join chat with user data
-    joinChat(currentUserData);
+    // Only join chat once
+    if (!hasJoinedChat) {
+      joinChat(currentUserData);
+      setHasJoinedChat(true);
+    }
 
     // Get active users immediately
     getActiveUsers();
 
     // Auto-find partner after a short delay with gender preference
     const timer = setTimeout(() => {
-      if (!currentPartner && !isSearching) {
+      if (!currentPartner && !isSearching && !hasStartedSearching) {
         const genderPreference = location.state?.genderPreference || 'any';
         console.log('Finding partner with gender preference:', genderPreference);
         findPartner({ genderFilter: genderPreference });
+        setHasStartedSearching(true);
       }
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [currentUserData, joinChat, findPartner, currentPartner, isSearching, navigate, location.state, getActiveUsers]);
+  }, [currentUserData, currentPartner, isSearching, navigate, location.state, hasJoinedChat, hasStartedSearching]);
 
   // Cleanup when component unmounts
   useEffect(() => {
@@ -206,20 +212,20 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
             </div>
 
             <div className="flex items-center space-x-1 sm:space-x-2">
-              {/* Online Users Counter */}
-              <div className="flex items-center space-x-2 bg-orange-100 px-3 py-1 rounded-full">
-                <Users className="w-4 h-4 text-orange-600" />
-                <span className="text-sm font-medium text-orange-700">
-                  {activeUsers.length} online
-                </span>
-                <button
-                  onClick={() => getActiveUsers()}
-                  className="ml-1 p-1 hover:bg-orange-200 rounded transition-colors"
-                  title="Refresh online users"
-                >
-                  <RefreshCw className="w-3 h-3 text-orange-600" />
-                </button>
-              </div>
+                             {/* Online Users Counter */}
+               <div className="flex items-center space-x-2 bg-orange-100 px-3 py-1 rounded-full">
+                 <Users className="w-4 h-4 text-orange-600" />
+                 <span className="text-sm font-medium text-orange-700">
+                   {onlineUsers.length} online
+                 </span>
+                 <button
+                   onClick={() => getActiveUsers()}
+                   className="ml-1 p-1 hover:bg-orange-200 rounded transition-colors"
+                   title="Refresh online users"
+                 >
+                   <RefreshCw className="w-3 h-3 text-orange-600" />
+                 </button>
+               </div>
 
               {currentPartner && (
                 <button
@@ -289,23 +295,23 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                 <h3 className="text-lg font-semibold mb-2">No Partner Connected</h3>
                 <p className="text-gray-600 mb-4">Click the button below to find someone to chat with</p>
                 
-                {/* Active Users Section */}
-                {activeUsers.length > 0 && (
-                  <div className="mb-4 p-4 bg-orange-50 rounded-lg">
-                    <h4 className="text-sm font-semibold text-orange-700 mb-2">
-                      Active Users ({activeUsers.length})
-                    </h4>
-                    <div className="space-y-1">
-                      {activeUsers.map((activeUser) => (
-                        <div key={activeUser.id} className="flex items-center space-x-2 text-xs">
-                          <div className={`w-2 h-2 rounded-full ${activeUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                          <span className="text-gray-700">{activeUser.username}</span>
-                          <span className="text-gray-500">({getGenderDisplay(activeUser.gender)})</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                                 {/* Active Users Section */}
+                 {onlineUsers.length > 0 && (
+                   <div className="mb-4 p-4 bg-orange-50 rounded-lg">
+                     <h4 className="text-sm font-semibold text-orange-700 mb-2">
+                       Active Users ({onlineUsers.length})
+                     </h4>
+                     <div className="space-y-1">
+                       {onlineUsers.map((activeUser) => (
+                         <div key={activeUser.uid} className="flex items-center space-x-2 text-xs">
+                           <div className={`w-2 h-2 rounded-full ${activeUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                           <span className="text-gray-700">{activeUser.username}</span>
+                           <span className="text-gray-500">({getGenderDisplay(activeUser.gender)})</span>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 )}
                 
                 <div className="space-y-3">
                   <button

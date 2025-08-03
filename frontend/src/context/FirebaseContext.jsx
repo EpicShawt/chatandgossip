@@ -123,7 +123,7 @@ export const FirebaseProvider = ({ children }) => {
       console.log('Cleaning up online users listener');
       off(onlineUsersRef, 'value', unsubscribe);
     };
-  }, []);
+  }, [rtdb]);
 
   const signup = async (email, password, username) => {
     try {

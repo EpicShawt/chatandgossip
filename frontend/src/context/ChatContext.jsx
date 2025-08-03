@@ -148,6 +148,12 @@ export const ChatProvider = ({ children }) => {
   };
 
   const findPartner = async (options = {}) => {
+    // Prevent multiple simultaneous searches
+    if (state.isSearching) {
+      console.log('Already searching for partner, skipping...');
+      return;
+    }
+    
     console.log('Finding partner with options:', options);
     console.log('Current user:', currentUser);
     dispatch({ type: 'SET_SEARCHING', payload: true });
