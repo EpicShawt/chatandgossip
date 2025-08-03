@@ -152,6 +152,9 @@ export const ChatProvider = ({ children }) => {
   };
 
   const findPartner = async (options = {}) => {
+    console.log('findPartner called with options:', options);
+    console.log('Current state - isSearching:', state.isSearching, 'currentPartner:', state.currentPartner);
+    
     // Prevent multiple simultaneous searches
     if (state.isSearching) {
       console.log('Already searching for partner, skipping...');
@@ -455,8 +458,12 @@ export const ChatProvider = ({ children }) => {
     // Clear current partner
     dispatch({ type: 'CLEAR_CHAT' });
     
+    // Reset searching state
+    dispatch({ type: 'SET_SEARCHING', payload: false });
+    
     // Wait a moment then start new search
     setTimeout(() => {
+      console.log('Starting new partner search from nextPartner');
       findPartner();
     }, 500);
   };

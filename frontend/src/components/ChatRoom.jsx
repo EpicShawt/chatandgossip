@@ -128,11 +128,18 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
   };
 
   const handleNextPartner = () => {
+    console.log('Next Partner button clicked');
+    
     if (currentPartner) {
+      // If we have a partner, leave the current chat first
       leaveChat();
       setTimeout(() => {
         nextPartner();
       }, 1000);
+    } else {
+      // If no partner, start a new search immediately
+      console.log('No current partner, starting new search');
+      findPartner();
     }
   };
 
