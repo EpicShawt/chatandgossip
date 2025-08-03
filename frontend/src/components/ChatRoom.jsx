@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Send, ArrowLeft, Users, Filter, RefreshCw, Shield } from 'lucide-react';
+import { Send, ArrowLeft, Users, Filter, RefreshCw, Shield, Check, CheckCheck } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 import { useFirebase } from '../context/FirebaseContext';
 import toast from 'react-hot-toast';
@@ -163,10 +163,46 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
   };
 
   const getOnlineStatus = (partner) => {
-    if (partner?.isTestUser) return 'Online';
-    return partner?.isOnline ? 'Online' : 'Offline';
+    if (partner.isOnline) return 'Online';
+    if (partner.lastSeen) {
+      const lastSeen = new Date(partner.lastSeen);
+      const now = new Date();
+      const diffMinutes = Math.floor((now - lastSeen) / (1000 * 60));
+      if (diffMinutes < 1) return 'Just now';
+      if (diffMinutes < 60) return `${diffMinutes}m ago`;
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return lastSeen.toLocaleDateString();
+    }
+    return 'Offline';
   };
 
+  const renderMessageStatus = (status, isOwnMessage) => {
+    if (!isOwnMessage) return null;
+    
+    switch (status) {
+      case 'sent':
+        return (
+          <div className="message-status sent">
+            <Check className="status-icon single" />
+          </div>
+        );
+      case 'delivered':
+        return (
+          <div className="message-status delivered">
+            <CheckCheck className="status-icon double" />
+          </div>
+        );
+      case 'read':
+        return (
+          <div className="message-status read">
+            <CheckCheck className="status-icon read" />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
 
   return (
@@ -374,9 +410,12 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                       )}
                       <div className="flex-1">
                         <p className="text-sm">{msg.content}</p>
-                        <p className={`text-xs opacity-70 mt-1 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </p>
+                        <div className={`flex items-center justify-between mt-1 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <p className={`text-xs opacity-70 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
+                            {new Date(msg.timestamp).toLocaleTimeString()}
+                          </p>
+                          {renderMessageStatus(msg.status, isOwnMessage)}
+                        </div>
                       </div>
                     </div>
                   </div>

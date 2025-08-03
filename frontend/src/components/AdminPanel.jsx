@@ -23,7 +23,10 @@ const AdminPanel = () => {
         ...filters
       });
       
-      const response = await fetch(`/api/admin/users?${params}`);
+      const response = await fetch(`http://localhost:5000/api/admin/users?${params}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       
       setUsers(data.users);
@@ -31,6 +34,7 @@ const AdminPanel = () => {
       setCurrentPage(page);
     } catch (error) {
       console.error('Error fetching users:', error);
+      alert('Failed to fetch users. Check if the backend server is running.');
     } finally {
       setLoading(false);
     }
@@ -38,49 +42,65 @@ const AdminPanel = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/admin/stats');
+      const response = await fetch('http://localhost:5000/api/admin/stats');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       setStats(data);
     } catch (error) {
       console.error('Error fetching stats:', error);
+      alert('Failed to fetch stats. Check if the backend server is running.');
     }
   };
 
   const fetchChatRooms = async () => {
     try {
-      const response = await fetch('/api/admin/chatrooms');
+      const response = await fetch('http://localhost:5000/api/admin/chatrooms');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       setChatRooms(data.chatRooms);
     } catch (error) {
       console.error('Error fetching chat rooms:', error);
+      alert('Failed to fetch chat rooms. Check if the backend server is running.');
     }
   };
 
   const cleanupTempUsers = async () => {
     try {
-      const response = await fetch('/api/admin/cleanup/temp-users', {
+      const response = await fetch('http://localhost:5000/api/admin/cleanup/temp-users', {
         method: 'DELETE'
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       alert(data.message);
       fetchUsers(currentPage);
       fetchStats();
     } catch (error) {
       console.error('Error cleaning up temp users:', error);
+      alert('Failed to cleanup temp users. Check if the backend server is running.');
     }
   };
 
   const cleanupOfflineUsers = async () => {
     try {
-      const response = await fetch('/api/admin/cleanup/offline-users', {
+      const response = await fetch('http://localhost:5000/api/admin/cleanup/offline-users', {
         method: 'PUT'
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       alert(data.message);
       fetchUsers(currentPage);
       fetchStats();
     } catch (error) {
       console.error('Error cleaning up offline users:', error);
+      alert('Failed to cleanup offline users. Check if the backend server is running.');
     }
   };
 
@@ -88,15 +108,19 @@ const AdminPanel = () => {
     if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(`http://localhost:5000/api/admin/users/${userId}`, {
         method: 'DELETE'
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       alert(data.message);
       fetchUsers(currentPage);
       fetchStats();
     } catch (error) {
       console.error('Error deleting user:', error);
+      alert('Failed to delete user. Check if the backend server is running.');
     }
   };
 

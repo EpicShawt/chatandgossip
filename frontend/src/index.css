@@ -65,6 +65,39 @@ body {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
+  /* WhatsApp-style message status indicators */
+  .message-status {
+    @apply flex items-center space-x-1 ml-2;
+  }
+
+  .message-status.sent {
+    @apply text-gray-400;
+  }
+
+  .message-status.delivered {
+    @apply text-blue-500;
+  }
+
+  .message-status.read {
+    @apply text-blue-500;
+  }
+
+  .status-icon {
+    @apply w-4 h-4;
+  }
+
+  .status-icon.single {
+    @apply text-gray-400;
+  }
+
+  .status-icon.double {
+    @apply text-blue-500;
+  }
+
+  .status-icon.read {
+    @apply text-blue-500;
+  }
+
   .profile-picture {
     @apply w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg;
   }

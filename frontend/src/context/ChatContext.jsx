@@ -377,6 +377,14 @@ export const ChatProvider = ({ children }) => {
               });
             });
             dispatch({ type: 'SET_MESSAGES', payload: messages });
+            
+            // Mark received messages as read
+            const currentUserId = currentUser?.uid || 'guest';
+            messages.forEach(async (msg) => {
+              if (msg.from !== currentUserId && msg.status !== 'read') {
+                await markMessageAsRead(roomId, msg.messageId);
+              }
+            });
           });
         } catch (error) {
           console.error('Error setting up message listener:', error);
@@ -434,13 +442,33 @@ export const ChatProvider = ({ children }) => {
       const rtdb = getDatabase(app);
       const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
       
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      
       await push(messagesRef, {
         ...messageData,
         from: currentUser?.uid || 'guest',
         to: state.currentPartner.uid,
         timestamp: Date.now(),
-        messageId: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+        messageId: messageId,
+        status: 'sent' // Initial status
       });
+      
+      // Update message status to delivered after a short delay
+      setTimeout(async () => {
+        try {
+          const messageRef = ref(rtdb, `chat_rooms/${roomId}/messages/${messageId}`);
+          await set(messageRef, {
+            ...messageData,
+            from: currentUser?.uid || 'guest',
+            to: state.currentPartner.uid,
+            timestamp: Date.now(),
+            messageId: messageId,
+            status: 'delivered'
+          });
+        } catch (error) {
+          console.error('Error updating message status to delivered:', error);
+        }
+      }, 1000);
       
       // Don't show success toast for every message
     } catch (error) {
@@ -682,6 +710,27 @@ export const ChatProvider = ({ children }) => {
       console.error('Firebase connection test failed:', error);
       toast.error('Firebase connection test failed');
       return false;
+    }
+  };
+
+  const markMessageAsRead = async (roomId, messageId) => {
+    try {
+      const app = getApp();
+      const rtdb = getDatabase(app);
+      const messageRef = ref(rtdb, `chat_rooms/${roomId}/messages/${messageId}`);
+      
+      // Get current message data
+      const messageSnapshot = await get(messageRef);
+      if (messageSnapshot.exists()) {
+        const messageData = messageSnapshot.val();
+        await set(messageRef, {
+          ...messageData,
+          status: 'read'
+        });
+        console.log(`Message ${messageId} in room ${roomId} marked as read.`);
+      }
+    } catch (error) {
+      console.error('Error marking message as read:', error);
     }
   };
 
