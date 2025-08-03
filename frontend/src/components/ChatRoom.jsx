@@ -143,12 +143,13 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     }
   };
 
-  const getProfilePicture = (gender) => {
+  const getProfilePicture = (gender, profilePicture = 'default1') => {
     const baseClass = "profile-picture";
+    const pictureClass = profilePicture || 'default1';
     switch (gender) {
-      case 'male': return `${baseClass} male`;
-      case 'female': return `${baseClass} female`;
-      default: return `${baseClass} not-disclosed`;
+      case 'male': return `${baseClass} male ${pictureClass}`;
+      case 'female': return `${baseClass} female ${pictureClass}`;
+      default: return `${baseClass} not-disclosed ${pictureClass}`;
     }
   };
 
@@ -184,14 +185,14 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
               
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="relative">
-                  <div className={getProfilePicture(currentUserData?.gender)}>
-                    {currentUserData?.username?.charAt(0).toUpperCase()}
-                  </div>
+                                   <div className={getProfilePicture(currentUserData?.gender, currentUserData?.profilePicture)}>
+                   {currentUserData?.username?.charAt(0).toUpperCase()}
+                 </div>
                   <div className="online-indicator online"></div>
                 </div>
                 <div>
                   <h2 className="font-semibold text-gray-800 text-sm sm:text-base">
-                    {currentUserData?.username}
+                    @{currentUserData?.username}#{currentUserData?.userId || 'GUEST'}
                     {isGuest && (
                       <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded-full">
                         Guest
@@ -248,21 +249,21 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
           {/* Partner Info */}
           {currentPartner ? (
             <div className="flex items-center space-x-3 p-4 border-b border-orange-100">
-              <div className="relative">
-                <div className={getProfilePicture(currentPartner.gender)}>
-                  {currentPartner.username.charAt(0).toUpperCase()}
-                </div>
-                <div className={`online-indicator ${currentPartner.isOnline ? 'online' : 'offline'}`}></div>
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-800">
-                  {currentPartner.username}
-                  {currentPartner.isTestUser && (
-                    <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded-full">
-                      Test User
-                    </span>
-                  )}
-                </h3>
+                             <div className="relative">
+                 <div className={getProfilePicture(currentPartner.gender, currentPartner.profilePicture)}>
+                   {currentPartner.username.charAt(0).toUpperCase()}
+                 </div>
+                 <div className={`online-indicator ${currentPartner.isOnline ? 'online' : 'offline'}`}></div>
+               </div>
+               <div className="flex-1">
+                 <h3 className="font-semibold text-gray-800">
+                   @{currentPartner.username}#{currentPartner.userId}
+                   {currentPartner.isTestUser && (
+                     <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded-full">
+                       Test User
+                     </span>
+                   )}
+                 </h3>
                 <p className="text-sm text-gray-500">
                   {getGenderDisplay(currentPartner.gender)} • {getOnlineStatus(currentPartner)}
                 </p>
@@ -296,13 +297,13 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
                        Active Users ({onlineUsers.length})
                      </h4>
                      <div className="space-y-1">
-                       {onlineUsers.map((activeUser) => (
-                         <div key={activeUser.uid} className="flex items-center space-x-2 text-xs">
-                           <div className={`w-2 h-2 rounded-full ${activeUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                           <span className="text-gray-700">{activeUser.username}</span>
-                           <span className="text-gray-500">({getGenderDisplay(activeUser.gender)})</span>
-                         </div>
-                       ))}
+                                               {onlineUsers.map((activeUser) => (
+                          <div key={activeUser.uid} className="flex items-center space-x-2 text-xs">
+                            <div className={`w-2 h-2 rounded-full ${activeUser.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                            <span className="text-gray-700">@{activeUser.username}#{activeUser.userId}</span>
+                            <span className="text-gray-500">({getGenderDisplay(activeUser.gender)})</span>
+                          </div>
+                        ))}
                      </div>
                    </div>
                  )}
@@ -355,19 +356,30 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((msg, index) => (
-              <div
-                key={index}
-                className={`flex ${msg.from === currentUserData?.id || msg.from === currentUserData?.uid ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`chat-bubble ${msg.from === currentUserData?.id || msg.from === currentUserData?.uid ? 'sent' : 'received'}`}>
-                  <p className="text-sm">{msg.content}</p>
-                  <p className="text-xs opacity-70 mt-1">
-                    {new Date(msg.timestamp).toLocaleTimeString()}
-                  </p>
-                </div>
-              </div>
-            ))}
+                         {messages.map((msg, index) => (
+               <div
+                 key={msg.messageId || index}
+                 className={`flex ${msg.from === currentUserData?.id || msg.from === currentUserData?.uid ? 'justify-end' : 'justify-start'}`}
+               >
+                 <div className={`chat-bubble ${msg.from === currentUserData?.id || msg.from === currentUserData?.uid ? 'sent' : 'received'}`}>
+                   <div className="flex items-end space-x-2">
+                     {msg.from !== currentUserData?.id && msg.from !== currentUserData?.uid && (
+                       <div className="flex-shrink-0">
+                         <div className={`w-6 h-6 rounded-full bg-gradient-to-r from-pink-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold`}>
+                           {currentPartner?.username?.charAt(0).toUpperCase()}
+                         </div>
+                       </div>
+                     )}
+                     <div className="flex-1">
+                       <p className="text-sm">{msg.content}</p>
+                       <p className="text-xs opacity-70 mt-1">
+                         {new Date(msg.timestamp).toLocaleTimeString()}
+                       </p>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+             ))}
             
             {/* Typing Indicator */}
             {typingUsers.length > 0 && (

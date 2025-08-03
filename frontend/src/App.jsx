@@ -8,6 +8,7 @@ import Login from './components/Login';
 import Signup from './components/Signup';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import PaymentModal from './components/PaymentModal';
+import AdminPanel from './components/AdminPanel';
 import { ChatProvider } from './context/ChatContext';
 import { FirebaseProvider, useFirebase } from './context/FirebaseContext';
 
@@ -139,6 +140,10 @@ function AppContent() {
           <Route 
             path="/privacy" 
             element={<PrivacyPolicy />} 
+          />
+          <Route 
+            path="/admin" 
+            element={<AdminPanel />} 
           />
         </Routes>
       </ChatProvider>

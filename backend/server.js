@@ -10,6 +10,7 @@ const { initializeFirebase } = require('./config/firebase');
 require('dotenv').config();
 
 const ChatManager = require('./services/ChatManager');
+const CleanupService = require('./services/CleanupService');
 const User = require('./models/User');
 const Message = require('./models/Message');
 const ChatRoom = require('./models/ChatRoom');
@@ -26,8 +27,9 @@ const io = socketIo(server, {
 // Initialize Firebase
 initializeFirebase();
 
-// Initialize chat manager
+// Initialize chat manager and cleanup service
 const chatManager = new ChatManager();
+const cleanupService = new CleanupService();
 
 // Connect to MongoDB (keeping for migration)
 connectDB().then(async () => {
@@ -110,6 +112,7 @@ app.get('/test', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/payments', require('./routes/payments'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => {

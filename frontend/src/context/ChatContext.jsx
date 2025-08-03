@@ -85,12 +85,13 @@ export const ChatProvider = ({ children }) => {
       delete window.chatContextDispatch;
     };
   }, []);
-     const { 
-     currentUser, 
-     getOnlineUsers,
-     createUserProfile,
-     updateUserProfile
-   } = useFirebase();
+  
+  const { 
+    currentUser, 
+    getOnlineUsers,
+    createUserProfile,
+    updateUserProfile
+  } = useFirebase();
 
   const messageListenerRef = useRef(null);
   const onlineUsersListenerRef = useRef(null);
@@ -111,20 +112,23 @@ export const ChatProvider = ({ children }) => {
       console.log('User ID for online tracking:', userId);
       console.log('Username for online tracking:', username);
       
-             // Add user to online users in Firebase Realtime Database
-       const app = getApp();
-       const rtdb = getDatabase(app);
+      // Add user to online users in Firebase Realtime Database
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       
-             const userOnlineData = {
-         uid: userId,
-         username: username,
-         isOnline: true,
-         lastSeen: Date.now(),
-         isGuest: !currentUser,
-         gender: userData?.gender || 'not_disclosed',
-         isSearching: false
-       };
+      const userOnlineData = {
+        uid: userId,
+        username: username,
+        isOnline: true,
+        lastSeen: Date.now(),
+        isGuest: !currentUser,
+        gender: userData?.gender || 'not_disclosed',
+        isSearching: false,
+        currentPartner: null, // Prevent multiple connections
+        profilePicture: userData?.profilePicture || 'default1',
+        userId: userData?.userId || Math.random().toString(36).substring(2, 8).toUpperCase()
+      };
       
       console.log('Adding user to online list:', userOnlineData);
       await set(onlineUsersRef, userOnlineData);
@@ -172,11 +176,11 @@ export const ChatProvider = ({ children }) => {
     dispatch({ type: 'SET_SEARCHING', payload: true });
     toast.loading('Searching for partner...');
 
-         // Mark current user as searching
-     const currentUserId = currentUser?.uid || 'guest';
-     try {
-       const app = getApp();
-       const rtdb = getDatabase(app);
+    // Mark current user as searching
+    const currentUserId = currentUser?.uid || 'guest';
+    try {
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const userRef = ref(rtdb, `online_users/${currentUserId}`);
       
       // Get current user data first
@@ -186,7 +190,8 @@ export const ChatProvider = ({ children }) => {
       // Update user status to searching
       await set(userRef, {
         ...currentUserData,
-        isSearching: true
+        isSearching: true,
+        currentPartner: null
       });
     } catch (error) {
       console.error('Error updating search status:', error);
@@ -196,19 +201,19 @@ export const ChatProvider = ({ children }) => {
     const searchTimeout = setTimeout(async () => {
       console.log('30 seconds passed, no real partners found');
       
-               // Mark user as no longer searching
-         try {
-           const app = getApp();
-           const rtdb = getDatabase(app);
+      // Mark user as no longer searching
+      try {
+        const app = getApp();
+        const rtdb = getDatabase(app);
         const userRef = ref(rtdb, `online_users/${currentUserId}`);
         
-                 const userSnapshot = await get(userRef);
-         const userData = userSnapshot.val() || {};
-         
-         await set(userRef, {
-           ...userData,
-           isSearching: false
-         });
+        const userSnapshot = await get(userRef);
+        const userData = userSnapshot.val() || {};
+        
+        await set(userRef, {
+          ...userData,
+          isSearching: false
+        });
       } catch (updateError) {
         console.error('Error updating search status:', updateError);
       }
@@ -230,7 +235,8 @@ export const ChatProvider = ({ children }) => {
       let availableUsers = onlineUsers.filter(user => 
         user.uid !== currentUserId && 
         user.isOnline &&
-        !user.isSearching // Don't pair with users who are already searching
+        !user.isSearching && // Don't pair with users who are already searching
+        !user.currentPartner // Don't pair with users who already have a partner
       );
 
       // Apply gender filter if specified
@@ -244,9 +250,9 @@ export const ChatProvider = ({ children }) => {
       console.log('Total online users:', onlineUsers.length);
       console.log('Available partners count:', availableUsers.length);
 
-             if (availableUsers.length > 0) {
-         // Clear the search timeout since we found a real partner
-         clearTimeout(searchTimeout);
+      if (availableUsers.length > 0) {
+        // Clear the search timeout since we found a real partner
+        clearTimeout(searchTimeout);
         
         // Find a random partner from real users
         const randomIndex = Math.floor(Math.random() * availableUsers.length);
@@ -257,110 +263,112 @@ export const ChatProvider = ({ children }) => {
         // Create a unique room ID for this chat
         const roomId = `chat_${Math.min(currentUserId, partner.uid)}_${Math.max(currentUserId, partner.uid)}`;
         
-                 // Create chat room in Realtime Database instead of Firestore
-         try {
-           const app = getApp();
-           const rtdb = getDatabase(app);
-           const chatRoomRef = ref(rtdb, `chat_rooms/${roomId}`);
-           
-           await set(chatRoomRef, {
-             roomId,
-             participants: [currentUserId, partner.uid],
-             createdAt: Date.now(),
-             lastActivity: Date.now()
-           });
-         } catch (error) {
-           console.error('Error creating chat room:', error);
-         }
+        // Create chat room in Realtime Database instead of Firestore
+        try {
+          const app = getApp();
+          const rtdb = getDatabase(app);
+          const chatRoomRef = ref(rtdb, `chat_rooms/${roomId}`);
+          
+          await set(chatRoomRef, {
+            roomId,
+            participants: [currentUserId, partner.uid],
+            createdAt: Date.now(),
+            lastActivity: Date.now()
+          });
+        } catch (error) {
+          console.error('Error creating chat room:', error);
+        }
         
-                 // Mark both users as no longer searching
-         try {
-           const app = getApp();
-           const rtdb = getDatabase(app);
-           
-           // Mark current user as no longer searching
-           const currentUserRef = ref(rtdb, `online_users/${currentUserId}`);
-           const currentUserSnapshot = await get(currentUserRef);
-           const currentUserData = currentUserSnapshot.val() || {};
-           await set(currentUserRef, {
-             ...currentUserData,
-             isSearching: false
-           });
-           
-           // Mark partner as no longer searching
-           const partnerRef = ref(rtdb, `online_users/${partner.uid}`);
-           const partnerSnapshot = await get(partnerRef);
-           const partnerData = partnerSnapshot.val() || {};
-           await set(partnerRef, {
-             ...partnerData,
-             isSearching: false
-           });
-         } catch (error) {
-           console.error('Error updating search status:', error);
-         }
+        // Mark both users as no longer searching and set current partner
+        try {
+          const app = getApp();
+          const rtdb = getDatabase(app);
+          
+          // Mark current user as no longer searching and set partner
+          const currentUserRef = ref(rtdb, `online_users/${currentUserId}`);
+          const currentUserSnapshot = await get(currentUserRef);
+          const currentUserData = currentUserSnapshot.val() || {};
+          await set(currentUserRef, {
+            ...currentUserData,
+            isSearching: false,
+            currentPartner: partner.uid
+          });
+          
+          // Mark partner as no longer searching and set current partner
+          const partnerRef = ref(rtdb, `online_users/${partner.uid}`);
+          const partnerSnapshot = await get(partnerRef);
+          const partnerData = partnerSnapshot.val() || {};
+          await set(partnerRef, {
+            ...partnerData,
+            isSearching: false,
+            currentPartner: currentUserId
+          });
+        } catch (error) {
+          console.error('Error updating search status:', error);
+        }
         
         // Set the partner
         dispatch({ type: 'SET_PARTNER', payload: partner });
         dispatch({ type: 'SET_SEARCHING', payload: false });
-        toast.success(`Connected with ${partner.username || partner.displayName}!`);
+        toast.success(`Connected with @${partner.username}#${partner.userId}!`);
         
-                 // Listen to messages in this room using Realtime Database
-         if (messageListenerRef.current) {
-           messageListenerRef.current();
-         }
-         
-         try {
-           const app = getApp();
-           const rtdb = getDatabase(app);
-           const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
-           
-           messageListenerRef.current = onValue(messagesRef, (snapshot) => {
-             const messages = [];
-             snapshot.forEach((childSnapshot) => {
-               messages.push({
-                 id: childSnapshot.key,
-                 ...childSnapshot.val()
-               });
-             });
-             dispatch({ type: 'SET_MESSAGES', payload: messages });
-           });
-         } catch (error) {
-           console.error('Error setting up message listener:', error);
-         }
+        // Listen to messages in this room using Realtime Database
+        if (messageListenerRef.current) {
+          messageListenerRef.current();
+        }
         
-             } else {
-         // No real users available, wait for timeout or manual next partner
-         console.log('No real users available, waiting for timeout or manual next partner');
-         console.log('This means either:');
-         console.log('1. No other users are online');
-         console.log('2. You are the only user online');
-         console.log('3. Firebase connection issues');
-         console.log('4. All available users are already searching');
-       }
-         } catch (error) {
-       console.error('Error finding partner:', error);
-       clearTimeout(searchTimeout);
-       
-       // Mark user as no longer searching
-       try {
-         const app = getApp();
-         const rtdb = getDatabase(app);
-         const userRef = ref(rtdb, `online_users/${currentUserId}`);
-         
-         const userSnapshot = await get(userRef);
-         const userData = userSnapshot.val() || {};
-         
-         await set(userRef, {
-           ...userData,
-           isSearching: false
-         });
-       } catch (updateError) {
-         console.error('Error updating search status:', updateError);
-       }
-       
-       dispatch({ type: 'SET_SEARCHING', payload: false });
-       toast.error('Failed to find partner. Try clicking "Next Partner" to search again.');
-     }
+        try {
+          const app = getApp();
+          const rtdb = getDatabase(app);
+          const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
+          
+          messageListenerRef.current = onValue(messagesRef, (snapshot) => {
+            const messages = [];
+            snapshot.forEach((childSnapshot) => {
+              messages.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+              });
+            });
+            dispatch({ type: 'SET_MESSAGES', payload: messages });
+          });
+        } catch (error) {
+          console.error('Error setting up message listener:', error);
+        }
+        
+      } else {
+        // No real users available, wait for timeout or manual next partner
+        console.log('No real users available, waiting for timeout or manual next partner');
+        console.log('This means either:');
+        console.log('1. No other users are online');
+        console.log('2. You are the only user online');
+        console.log('3. Firebase connection issues');
+        console.log('4. All available users are already searching or have partners');
+      }
+    } catch (error) {
+      console.error('Error finding partner:', error);
+      clearTimeout(searchTimeout);
+      
+      // Mark user as no longer searching
+      try {
+        const app = getApp();
+        const rtdb = getDatabase(app);
+        const userRef = ref(rtdb, `online_users/${currentUserId}`);
+        
+        const userSnapshot = await get(userRef);
+        const userData = userSnapshot.val() || {};
+        
+        await set(userRef, {
+          ...userData,
+          isSearching: false
+        });
+      } catch (updateError) {
+        console.error('Error updating search status:', updateError);
+      }
+      
+      dispatch({ type: 'SET_SEARCHING', payload: false });
+      toast.error('Failed to find partner. Try clicking "Next Partner" to search again.');
+    }
   };
 
   const sendMessage = async (messageData) => {
@@ -371,27 +379,28 @@ export const ChatProvider = ({ children }) => {
 
     console.log('Sending message:', messageData);
     
-                     try {
-         // Real user - send via Realtime Database
-         const currentUserId = currentUser?.uid || 'guest';
-         const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
-         
-         const app = getApp();
-         const rtdb = getDatabase(app);
-       const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
-       
-       await push(messagesRef, {
-         ...messageData,
-         from: currentUser?.uid || 'guest',
-         to: state.currentPartner.uid,
-         timestamp: Date.now()
-       });
-       
-       toast.success('Message sent!');
-     } catch (error) {
-       console.error('Error sending message:', error);
-       toast.error('Failed to send message');
-     }
+    try {
+      // Real user - send via Realtime Database
+      const currentUserId = currentUser?.uid || 'guest';
+      const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
+      
+      const app = getApp();
+      const rtdb = getDatabase(app);
+      const messagesRef = ref(rtdb, `chat_rooms/${roomId}/messages`);
+      
+      await push(messagesRef, {
+        ...messageData,
+        from: currentUser?.uid || 'guest',
+        to: state.currentPartner.uid,
+        timestamp: Date.now(),
+        messageId: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+      });
+      
+      // Don't show success toast for every message
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    }
   };
 
   const startTyping = (partnerId) => {
@@ -412,11 +421,11 @@ export const ChatProvider = ({ children }) => {
       messageListenerRef.current = null;
     }
     
-         // Remove user from online users
-     try {
-       const userId = currentUser?.uid || 'guest';
-       const app = getApp();
-       const rtdb = getDatabase(app);
+    // Remove user from online users
+    try {
+      const userId = currentUser?.uid || 'guest';
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       await set(onlineUsersRef, null);
       
@@ -425,23 +434,23 @@ export const ChatProvider = ({ children }) => {
       console.error('Error removing user from online list:', error);
     }
     
-         if (state.currentPartner) {
-       const currentUserId = currentUser?.uid || 'guest';
-       const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
-       
-       try {
-         const app = getApp();
-         const rtdb = getDatabase(app);
-         const chatRoomRef = ref(rtdb, `chat_rooms/${roomId}`);
-         
-         // Update last activity
-         await set(chatRoomRef, {
-           lastActivity: Date.now()
-         });
-       } catch (error) {
-         console.error('Error leaving chat room:', error);
-       }
-     }
+    if (state.currentPartner) {
+      const currentUserId = currentUser?.uid || 'guest';
+      const roomId = `chat_${Math.min(currentUserId, state.currentPartner.uid)}_${Math.max(currentUserId, state.currentPartner.uid)}`;
+      
+      try {
+        const app = getApp();
+        const rtdb = getDatabase(app);
+        const chatRoomRef = ref(rtdb, `chat_rooms/${roomId}`);
+        
+        // Update last activity
+        await set(chatRoomRef, {
+          lastActivity: Date.now()
+        });
+      } catch (error) {
+        console.error('Error leaving chat room:', error);
+      }
+    }
     
     dispatch({ type: 'CLEAR_CHAT' });
   };
@@ -480,13 +489,11 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  
-
-     const addTestUser = async () => {
-     try {
-       const testUserId = `test_user_${Date.now()}`;
-       const app = getApp();
-       const rtdb = getDatabase(app);
+  const addTestUser = async () => {
+    try {
+      const testUserId = `test_user_${Date.now()}`;
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${testUserId}`);
       
       await set(onlineUsersRef, {
@@ -494,7 +501,9 @@ export const ChatProvider = ({ children }) => {
         username: `TestUser${Date.now()}`,
         isOnline: true,
         lastSeen: Date.now(),
-        isGuest: true
+        isGuest: true,
+        userId: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        profilePicture: 'default1'
       });
       
       console.log('Added test user to online list:', testUserId);
@@ -505,18 +514,18 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-     const addMultipleTestUsers = async () => {
-     try {
-       const testUsers = [
-         { username: 'John', gender: 'male' },
-         { username: 'Emma', gender: 'female' },
-         { username: 'Alex', gender: 'not_disclosed' },
-         { username: 'Sarah', gender: 'female' },
-         { username: 'Mike', gender: 'male' }
-       ];
-       
-       const app = getApp();
-       const rtdb = getDatabase(app);
+  const addMultipleTestUsers = async () => {
+    try {
+      const testUsers = [
+        { username: 'John', gender: 'male', profilePicture: 'default2' },
+        { username: 'Emma', gender: 'female', profilePicture: 'default3' },
+        { username: 'Alex', gender: 'not_disclosed', profilePicture: 'default4' },
+        { username: 'Sarah', gender: 'female', profilePicture: 'default5' },
+        { username: 'Mike', gender: 'male', profilePicture: 'default6' }
+      ];
+      
+      const app = getApp();
+      const rtdb = getDatabase(app);
       
       for (let i = 0; i < testUsers.length; i++) {
         const testUserId = `test_user_${Date.now()}_${i}`;
@@ -528,7 +537,9 @@ export const ChatProvider = ({ children }) => {
           isOnline: true,
           lastSeen: Date.now(),
           isGuest: true,
-          gender: testUsers[i].gender
+          gender: testUsers[i].gender,
+          userId: Math.random().toString(36).substring(2, 8).toUpperCase(),
+          profilePicture: testUsers[i].profilePicture
         });
         
         console.log('Added test user:', testUsers[i].username);
@@ -544,10 +555,10 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-     const testFirebaseConnection = async () => {
-     try {
-       const app = getApp();
-       const rtdb = getDatabase(app);
+  const testFirebaseConnection = async () => {
+    try {
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const testRef = ref(rtdb, 'test_connection');
       
       await set(testRef, { timestamp: Date.now() });
@@ -562,20 +573,20 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-     const value = {
-     ...state,
-     joinChat,
-     findPartner,
-     sendMessage,
-     startTyping,
-     stopTyping,
-     leaveChat,
-     nextPartner,
-     getActiveUsers,
-     addTestUser,
-     addMultipleTestUsers,
-     testFirebaseConnection
-   };
+  const value = {
+    ...state,
+    joinChat,
+    findPartner,
+    sendMessage,
+    startTyping,
+    stopTyping,
+    leaveChat,
+    nextPartner,
+    getActiveUsers,
+    addTestUser,
+    addMultipleTestUsers,
+    testFirebaseConnection
+  };
 
   return (
     <ChatContext.Provider value={value}>
