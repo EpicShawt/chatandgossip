@@ -81,12 +81,14 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
       // Remove user from online list when leaving
       if (currentUserData) {
         const userId = currentUserData.uid;
-        const { set, ref } = import('firebase/database');
-        const { getDatabase } = import('firebase/app');
+        const { set, ref, getDatabase } = import('firebase/database');
+        const { getApp } = import('firebase/app');
         
-        getDatabase().then(rtdb => {
-          const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
-          set(onlineUsersRef, null);
+        Promise.all([set, ref, getDatabase, getApp]).then(([setFn, refFn, getDatabaseFn, getAppFn]) => {
+          const app = getAppFn();
+          const rtdb = getDatabaseFn(app);
+          const onlineUsersRef = refFn(rtdb, `online_users/${userId}`);
+          setFn(onlineUsersRef, null);
           console.log('Removed user from online list on unmount:', userId);
         });
       }

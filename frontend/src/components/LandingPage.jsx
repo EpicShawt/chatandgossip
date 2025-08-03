@@ -73,10 +73,12 @@ const LandingPage = ({
 
   const testFirebaseConnection = async () => {
     try {
-      const { set, ref, get } = await import('firebase/database');
-      const { getDatabase } = await import('firebase/app');
+      // Use Firebase functions from context instead of dynamic imports
+      const { getDatabase, ref, set, get } = await import('firebase/database');
+      const { getApp } = await import('firebase/app');
       
-      const rtdb = getDatabase();
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const testRef = ref(rtdb, 'test_connection');
       
       // Test write
@@ -100,10 +102,11 @@ const LandingPage = ({
 
   const checkOnlineUsers = async () => {
     try {
-      const { ref, get } = await import('firebase/database');
-      const { getDatabase } = await import('firebase/app');
+      const { getDatabase, ref, get } = await import('firebase/database');
+      const { getApp } = await import('firebase/app');
       
-      const rtdb = getDatabase();
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, 'online_users');
       
       const snapshot = await get(onlineUsersRef);

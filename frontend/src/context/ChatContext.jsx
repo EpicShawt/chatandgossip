@@ -98,10 +98,11 @@ export const ChatProvider = ({ children }) => {
       console.log('Username for online tracking:', username);
       
       // Add user to online users in Firebase Realtime Database
-      const { set, ref } = await import('firebase/database');
-      const { getDatabase } = await import('firebase/app');
+      const { set, ref, getDatabase } = await import('firebase/database');
+      const { getApp } = await import('firebase/app');
       
-      const rtdb = getDatabase();
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       
       const userOnlineData = {
@@ -329,10 +330,11 @@ export const ChatProvider = ({ children }) => {
     // Remove user from online users
     try {
       const userId = currentUser?.uid || 'guest';
-      const { set, ref } = await import('firebase/database');
-      const { getDatabase } = await import('firebase/app');
+      const { set, ref, getDatabase } = await import('firebase/database');
+      const { getApp } = await import('firebase/app');
       
-      const rtdb = getDatabase();
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
       await set(onlineUsersRef, null);
       
@@ -403,10 +405,11 @@ export const ChatProvider = ({ children }) => {
   const addTestUser = async () => {
     try {
       const testUserId = `test_user_${Date.now()}`;
-      const { set, ref } = await import('firebase/database');
-      const { getDatabase } = await import('firebase/app');
+      const { set, ref, getDatabase } = await import('firebase/database');
+      const { getApp } = await import('firebase/app');
       
-      const rtdb = getDatabase();
+      const app = getApp();
+      const rtdb = getDatabase(app);
       const onlineUsersRef = ref(rtdb, `online_users/${testUserId}`);
       
       await set(onlineUsersRef, {
@@ -435,10 +438,11 @@ export const ChatProvider = ({ children }) => {
         { username: 'Mike', gender: 'male' }
       ];
       
-      const { set, ref } = await import('firebase/database');
-      const { getDatabase } = await import('firebase/app');
+      const { set, ref, getDatabase } = await import('firebase/database');
+      const { getApp } = await import('firebase/app');
       
-      const rtdb = getDatabase();
+      const app = getApp();
+      const rtdb = getDatabase(app);
       
       for (let i = 0; i < testUsers.length; i++) {
         const testUserId = `test_user_${Date.now()}_${i}`;
