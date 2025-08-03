@@ -18,7 +18,6 @@ const LandingPage = ({
   const { currentUser } = useFirebase();
   const { joinChat, getActiveUsers } = useChat();
   const [guestUsername, setGuestUsername] = useState('');
-  const [isJoining, setIsJoining] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
 
   useEffect(() => {
@@ -26,7 +25,7 @@ const LandingPage = ({
     setOnlineCount(onlineUsers.length);
   }, [onlineUsers]);
 
-  const handleGuestChat = async () => {
+  const handleGuestChat = () => {
     if (!guestUsername.trim()) {
       toast.error('Please enter a username');
       return;
@@ -37,34 +36,25 @@ const LandingPage = ({
       return;
     }
 
-    setIsJoining(true);
+    // Create guest user data
+    const guestUser = {
+      uid: `guest_${Date.now()}`,
+      username: guestUsername.trim(),
+      email: `guest_${Date.now()}@chatandgossip.com`,
+      isGuest: true,
+      isOnline: true,
+      lastSeen: new Date().toISOString()
+    };
 
-    try {
-      // Create guest user data
-      const guestUser = {
-        uid: `guest_${Date.now()}`,
-        username: guestUsername.trim(),
-        email: `guest_${Date.now()}@chatandgossip.com`,
-        isGuest: true,
-        isOnline: true,
-        lastSeen: new Date().toISOString()
-      };
-
-      // Navigate to chat immediately
-      navigate('/chat', { 
-        state: { 
-          user: guestUser,
-          isGuest: true 
-        } 
-      });
-      
-      toast.success(`Welcome ${guestUsername}! Starting chat...`);
-    } catch (error) {
-      console.error('Error joining as guest:', error);
-      toast.error('Failed to join chat. Please try again.');
-    } finally {
-      setIsJoining(false);
-    }
+    // Navigate to chat immediately without any async operations
+    navigate('/chat', { 
+      state: { 
+        user: guestUser,
+        isGuest: true 
+      } 
+    });
+    
+    toast.success(`Welcome ${guestUsername}! Starting chat...`);
   };
 
   const handleAuthenticatedChat = () => {
@@ -183,20 +173,13 @@ const LandingPage = ({
                   />
                   <button
                     onClick={handleGuestChat}
-                    disabled={!guestUsername.trim() || isJoining}
+                    disabled={!guestUsername.trim()}
                     className="btn-primary px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isJoining ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Joining...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <Zap className="w-4 h-4" />
-                        <span>Start Chat</span>
-                      </div>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      <Zap className="w-4 h-4" />
+                      <span>Start Chat</span>
+                    </div>
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">

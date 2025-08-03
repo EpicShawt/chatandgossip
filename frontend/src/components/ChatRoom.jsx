@@ -63,7 +63,7 @@ const ChatRoom = ({ user, onLogout, onPaymentRequest }) => {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [currentPartner, isSearching, findPartner]);
+  }, []); // Remove dependencies to prevent re-runs
 
   const handleSendMessage = () => {
     if (!message.trim() || !currentPartner) return;
