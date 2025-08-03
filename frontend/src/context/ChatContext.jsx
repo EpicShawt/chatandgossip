@@ -133,16 +133,18 @@ export const ChatProvider = ({ children }) => {
 
   const findPartner = async (options = {}) => {
     console.log('Finding partner with options:', options);
+    console.log('Current user:', currentUser);
     dispatch({ type: 'SET_SEARCHING', payload: true });
     toast.loading('Searching for partner...');
 
     try {
       // Get real online users from Firebase
       const onlineUsers = await getOnlineUsers();
-      console.log('Available online users:', onlineUsers);
+      console.log('Available online users from Firebase:', onlineUsers);
       
       // Get current user ID (authenticated or guest)
       const currentUserId = currentUser?.uid || 'guest';
+      console.log('Current user ID:', currentUserId);
       
       // Filter out current user and find available partners
       const availableUsers = onlineUsers.filter(user => 
@@ -152,6 +154,8 @@ export const ChatProvider = ({ children }) => {
       );
 
       console.log('Available partners after filtering:', availableUsers);
+      console.log('Total online users:', onlineUsers.length);
+      console.log('Available partners count:', availableUsers.length);
 
       if (availableUsers.length > 0) {
         // Find a random partner from real users
@@ -179,6 +183,11 @@ export const ChatProvider = ({ children }) => {
       } else {
         // No real users available, use demo partner
         console.log('No real users available, using demo partner');
+        console.log('This means either:');
+        console.log('1. No other users are online');
+        console.log('2. You are the only user online');
+        console.log('3. Firebase connection issues');
+        
         const demoPartner = {
           uid: 'demo-partner-123',
           username: 'Sarah',
@@ -370,6 +379,32 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
+  const addTestUser = async () => {
+    try {
+      const testUserId = `test_user_${Date.now()}`;
+      const { set } = await import('firebase/database');
+      const { ref } = await import('firebase/database');
+      const { getDatabase } = await import('firebase/app');
+      
+      const rtdb = getDatabase();
+      const onlineUsersRef = ref(rtdb, `online_users/${testUserId}`);
+      
+      await set(onlineUsersRef, {
+        uid: testUserId,
+        username: `TestUser${Date.now()}`,
+        isOnline: true,
+        lastSeen: Date.now(),
+        isGuest: true
+      });
+      
+      console.log('Added test user to online list:', testUserId);
+      toast.success('Test user added to online list');
+    } catch (error) {
+      console.error('Error adding test user:', error);
+      toast.error('Failed to add test user');
+    }
+  };
+
   const value = {
     ...state,
     joinChat,
@@ -382,7 +417,8 @@ export const ChatProvider = ({ children }) => {
     getActiveUsers,
     joinRoom,
     leaveRoom,
-    sendRoomMessage
+    sendRoomMessage,
+    addTestUser
   };
 
   return (

@@ -16,7 +16,7 @@ const LandingPage = ({
 }) => {
   const navigate = useNavigate();
   const { currentUser, onlineUsers: firebaseOnlineUsers } = useFirebase();
-  const { joinChat, getActiveUsers } = useChat();
+  const { joinChat, getActiveUsers, addTestUser } = useChat();
   const [guestUsername, setGuestUsername] = useState('');
   const [onlineCount, setOnlineCount] = useState(0);
 
@@ -25,6 +25,8 @@ const LandingPage = ({
     const count = firebaseOnlineUsers?.length || onlineUsers?.length || 0;
     setOnlineCount(count);
     console.log('Real-time online count:', count);
+    console.log('Firebase online users:', firebaseOnlineUsers);
+    console.log('Props online users:', onlineUsers);
   }, [firebaseOnlineUsers, onlineUsers]);
 
   const handleGuestChat = () => {
@@ -59,6 +61,10 @@ const LandingPage = ({
     toast.success(`Welcome ${guestUsername}! Starting chat...`);
   };
 
+  const handleTestUser = () => {
+    addTestUser();
+  };
+
   const handleAuthenticatedChat = () => {
     if (isAuthenticated && user) {
       navigate('/chat');
@@ -88,6 +94,14 @@ const LandingPage = ({
                   {onlineCount} online
                 </span>
               </div>
+
+              {/* Test Button for Debugging */}
+              <button
+                onClick={handleTestUser}
+                className="btn-outline text-xs sm:text-sm bg-red-100 text-red-700 hover:bg-red-200"
+              >
+                Add Test User
+              </button>
 
               {isAuthenticated ? (
                 <div className="flex items-center space-x-2">

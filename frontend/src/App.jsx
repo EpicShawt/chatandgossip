@@ -13,7 +13,7 @@ import { FirebaseProvider, useFirebase } from './context/FirebaseContext';
 
 // Separate component that uses Firebase hooks
 function AppContent() {
-  const { currentUser, logout: firebaseLogout, getOnlineUsers } = useFirebase();
+  const { currentUser, logout: firebaseLogout, getOnlineUsers, onlineUsers: firebaseOnlineUsers } = useFirebase();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -21,30 +21,14 @@ function AppContent() {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [connectionStatus, setConnectionStatus] = useState('connected');
 
-  // Fetch online users function
-  const fetchOnlineUsers = async () => {
-    try {
-      const users = await getOnlineUsers();
-      console.log('Online users:', users);
-      setOnlineUsers(users);
-    } catch (err) {
-      console.error('Error fetching online users:', err);
-      // Don't show error toast for this, as it might be expected
-    }
-  };
-
   // Real-time online users from Firebase
   useEffect(() => {
-    if (currentUser) {
-      // User is authenticated, online count comes from Firebase context
-      console.log('Online users from Firebase:', onlineUsers);
-      setOnlineUsers(onlineUsers);
-    } else {
-      // Guest user - still show online count from Firebase
-      console.log('Online users for guest:', onlineUsers);
-      setOnlineUsers(onlineUsers);
+    console.log('Firebase online users updated:', firebaseOnlineUsers);
+    if (firebaseOnlineUsers && firebaseOnlineUsers.length >= 0) {
+      setOnlineUsers(firebaseOnlineUsers);
+      console.log('Updated online users count:', firebaseOnlineUsers.length);
     }
-  }, [currentUser, onlineUsers]);
+  }, [firebaseOnlineUsers]);
 
   // Update user state when Firebase auth changes
   useEffect(() => {
