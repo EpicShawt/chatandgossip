@@ -87,20 +87,41 @@ export const ChatProvider = ({ children }) => {
   }, []);
 
   const joinChat = async (userData) => {
-    if (!currentUser) return;
-    
     try {
       console.log('Joining chat with user data:', userData);
       
-      // Update user profile to show as online
-      await updateUserProfile(currentUser.uid, {
+      // Handle both authenticated and guest users
+      const userId = currentUser?.uid || userData?.uid || `guest_${Date.now()}`;
+      const username = userData?.username || 'Guest User';
+      
+      // Add user to online users in Firebase Realtime Database
+      const { set } = await import('firebase/database');
+      const { ref } = await import('firebase/database');
+      const { getDatabase } = await import('firebase/app');
+      
+      const rtdb = getDatabase();
+      const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
+      
+      await set(onlineUsersRef, {
+        uid: userId,
+        username: username,
         isOnline: true,
-        lastSeen: new Date().toISOString(),
-        ...userData
+        lastSeen: Date.now(),
+        isGuest: !currentUser
       });
+
+      // Update user profile if authenticated
+      if (currentUser) {
+        await updateUserProfile(currentUser.uid, {
+          isOnline: true,
+          lastSeen: new Date().toISOString(),
+          ...userData
+        });
+      }
 
       // Get online users for matching
       const onlineUsers = await getOnlineUsers();
+      console.log('Current online users:', onlineUsers);
       dispatch({ type: 'SET_ONLINE_USERS', payload: onlineUsers });
       
       toast.success('Joined chat successfully!');
@@ -120,12 +141,17 @@ export const ChatProvider = ({ children }) => {
       const onlineUsers = await getOnlineUsers();
       console.log('Available online users:', onlineUsers);
       
+      // Get current user ID (authenticated or guest)
+      const currentUserId = currentUser?.uid || 'guest';
+      
       // Filter out current user and find available partners
       const availableUsers = onlineUsers.filter(user => 
-        user.uid !== currentUser?.uid && 
+        user.uid !== currentUserId && 
         user.isOnline &&
         (!options.genderFilter || user.gender === options.genderFilter || user.gender === 'not_disclosed')
       );
+
+      console.log('Available partners after filtering:', availableUsers);
 
       if (availableUsers.length > 0) {
         // Find a random partner from real users
@@ -139,7 +165,7 @@ export const ChatProvider = ({ children }) => {
         
         // Create or join chat room
         const roomId = `chat_${Date.now()}_${partner.uid}`;
-        await joinChatRoom(roomId, { uid: currentUser?.uid || 'guest' });
+        await joinChatRoom(roomId, { uid: currentUserId });
         
         // Listen to messages in this room
         if (messageListenerRef.current) {
@@ -267,6 +293,22 @@ export const ChatProvider = ({ children }) => {
     if (messageListenerRef.current) {
       messageListenerRef.current();
       messageListenerRef.current = null;
+    }
+    
+    // Remove user from online users
+    try {
+      const userId = currentUser?.uid || 'guest';
+      const { set } = await import('firebase/database');
+      const { ref } = await import('firebase/database');
+      const { getDatabase } = await import('firebase/app');
+      
+      const rtdb = getDatabase();
+      const onlineUsersRef = ref(rtdb, `online_users/${userId}`);
+      await set(onlineUsersRef, null);
+      
+      console.log('Removed user from online list:', userId);
+    } catch (error) {
+      console.error('Error removing user from online list:', error);
     }
     
     if (state.currentPartner && !state.currentPartner.isTestUser) {

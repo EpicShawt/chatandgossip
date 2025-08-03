@@ -38,11 +38,32 @@ function AppContent() {
     if (currentUser) {
       // User is authenticated, online count comes from Firebase context
       console.log('Online users from Firebase:', onlineUsers);
+      setOnlineUsers(onlineUsers);
     } else {
       // Guest user - still show online count from Firebase
       console.log('Online users for guest:', onlineUsers);
+      setOnlineUsers(onlineUsers);
     }
   }, [currentUser, onlineUsers]);
+
+  // Update user state when Firebase auth changes
+  useEffect(() => {
+    if (currentUser) {
+      setUser({
+        id: currentUser.uid,
+        username: currentUser.displayName || currentUser.email?.split('@')[0],
+        email: currentUser.email
+      });
+      setIsAuthenticated(true);
+    } else {
+      // Don't clear user state if it's a guest user
+      // Only clear if there's no currentUser and no guest user
+      if (!user || !user.isGuest) {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    }
+  }, [currentUser]);
 
   const handleLogin = (userData) => {
     console.log('Logging in user:', userData);
